@@ -51,7 +51,17 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet
     protected $backurl = NULL;
 
     protected $paydata = NULL;
-    
+
+    /**
+     * @var string
+     */
+    protected $recurring = NULL;
+
+    /**
+     * @var string
+     */
+    protected $customer_is_present = NULL;
+
     /**
      * @param $successurl
      */
@@ -131,6 +141,38 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet
     public function getPaydata() 
     {
         return $this->paydata;
+    }
+
+    /**
+     * @param $customerIsPresent
+     */
+    public function setCustomerIsPresent($customerIsPresent)
+    {
+        $this->customer_is_present = $customerIsPresent;
+    }
+
+    /**
+     * @return string
+     */
+    public function getCustomerIsPresent()
+    {
+        return $this->customer_is_present;
+    }
+
+    /**
+     * @param $recurring
+     */
+    public function setRecurring($recurring)
+    {
+        $this->recurring = $recurring;
+    }
+
+    /**
+     * @return string
+     */
+    public function getRecurring()
+    {
+        return $this->recurring;
     }
     
 }
