@@ -55,7 +55,7 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet
     /**
      * @var string
      */
-    protected $recurring = NULL;
+    protected $recurrence = NULL;
 
     /**
      * @var string
