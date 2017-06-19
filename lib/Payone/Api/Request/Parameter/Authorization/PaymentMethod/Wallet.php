@@ -160,19 +160,19 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet
     }
 
     /**
-     * @param $recurring
+     * @param $recurrence
      */
-    public function setRecurring($recurring)
+    public function setRecurrence($recurrence)
     {
-        $this->recurring = $recurring;
+        $this->recurrence = $recurrence;
     }
 
     /**
      * @return string
      */
-    public function getRecurring()
+    public function getRecurrence()
     {
-        return $this->recurring;
+        return $this->recurrence;
     }
     
 }
