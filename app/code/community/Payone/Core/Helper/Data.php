@@ -266,7 +266,13 @@ class Payone_Core_Helper_Data
      */
     public function createAddressHash(Mage_Customer_Model_Address_Abstract $address)
     {
-        $values = $address->getFirstname() . $address->getLastname() . $address->getStreetFull() . $address->getPostcode() . $address->getCity() . $address->getRegionCode() . $address->getCountry();
+        $street = $address->getStreetFull();
+
+        if (is_array($street)) {
+            $street = implode("\n", $street);
+        }
+
+        $values = $address->getFirstname() . $address->getLastname() . $street . $address->getPostcode() . $address->getCity() . $address->getRegionCode() . $address->getCountry();
 
         $hash = md5($values);
 
