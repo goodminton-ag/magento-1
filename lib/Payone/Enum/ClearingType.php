@@ -21,19 +21,58 @@
  */
 class Payone_Enum_ClearingType
 {
-    const DEBITPAYMENT = 'elv';
-    const CREDITCARD_IFRAME = 'cc';
-    const CREDITCARD = 'cc';
-    const ADVANCEPAYMENT = 'vor';
-    const INVOICE = 'rec';
-    const ONLINEBANKTRANSFER = 'sb';
-    const CASHONDELIVERY = 'cod';
-    const WALLET = 'wlt';
-    const BARZAHLEN = 'csh';
-    const RATEPAY = 'fnc';
+    /**
+     * NOTE ABOUT ORDER OF THE CONSTANTS (MAGE-380)
+     * Some parts of the code use this list of constants in a reverse array, values become keys.
+     * In that case, keys must be unique and only the last instance of each key can be considered.
+     * See comments below
+     */
+
+    /** Cash */
+    const BARZAHLEN = 'csh';                // Default csh mapping
+
+    /** Cash on delivery */
+    const CASHONDELIVERY = 'cod';           // Default cod mapping
+
+    /** Creditcards */
+    const CREDITCARD = 'cc';                // Default cc mapping
+
+    /** Debit payments */
+    const DEBITPAYMENT = 'elv';             // Default elv mapping
+
+    /** Financing */
     const PAYOLUTION = 'fnc';
-    const PAYOLUTIONINVOICING = 'fnc';
     const PAYOLUTIONDEBIT = 'fnc';
     const PAYOLUTIONINSTALLMENT = 'fnc';
-    const FINANCING = 'fnc';
+    const PAYOLUTIONINVOICING = 'fnc';
+    const RATEPAY = 'fnc';
+    const RATEPAYINVOICING = 'fnc';
+    const RATEPAYDIRECTDEBIT = 'fnc';
+    const FINANCING = 'fnc';                // Default fnc mapping
+
+    /** Invoices */
+    const PAYMENTGUARANTEEINVOICE = 'rec';
+    const INVOICE = 'rec';                  // Default rec mapping
+
+    /** Online Banktransfer */
+    const ONLINEBANKTRANSFERBCT = 'sb';
+    const ONLINEBANKTRANSFERPFF = 'sb';
+    const ONLINEBANKTRANSFERP24 = 'sb';
+    const ONLINEBANKTRANSFERPFC = 'sb';
+    const ONLINEBANKTRANSFEREPS = 'sb';
+    const ONLINEBANKTRANSFERIDL = 'sb';
+    const ONLINEBANKTRANSFERGIROPAY = 'sb';
+    const ONLINEBANKTRANSFERSOFORT = 'sb';
+    const ONLINEBANKTRANSFER = 'sb';        // Default sb mapping
+
+    /** Pre-payments */
+    const ADVANCEPAYMENT = 'vor';           // Default vor mapping
+
+    /** Wallets */
+    const AMAZONPAY = 'wlt';
+    const WALLETALIPAY = 'wlt';
+    const WALLETPAYDIREKT = 'wlt';
+    const WALLETPAYDIREKTEXPRESS = 'wlt';
+    const WALLETPAYPALEXPRESS = 'wlt';
+    const WALLET = 'wlt';                   // Default wlt mapping
 }

@@ -36,7 +36,7 @@ class Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
     protected $acl_resource = 'payone/configuration/payment';
     
     /**
-     * @return Payone_Core_Adminhtml_System_Config_PaymentController
+     * @return Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
      */
     protected function _initAction()
     {
@@ -87,38 +87,42 @@ class Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
      */
     public function editAction()
     {
-        $id = $this->getRequest()->getParam('id');
-        $website = $this->getRequest()->getParam('website');
-        $store = $this->getRequest()->getParam('store');
-        $type = $this->getRequest()->getParam('type');
+        try {
+            $id = $this->getRequest()->getParam('id');
+            $website = $this->getRequest()->getParam('website');
+            $store = $this->getRequest()->getParam('store');
+            $type = $this->getRequest()->getParam('type');
 
-        /** @var $model Payone_Core_Model_Domain_Config_PaymentMethod */
-        $model = $this->getModelDomainConfigPaymentMethod()->load($id);
+            /** @var $model Payone_Core_Model_Domain_Config_PaymentMethod */
+            $model = $this->getModelDomainConfigPaymentMethod()->load($id);
 
-        if ($model->getId() || $id == 0) {
-            $data = Mage::getSingleton('adminhtml/session')->getFormData(true);
-            if (!empty($data)) {
-                $model->setData($data);
+            if ($model->getId() || $id == 0) {
+                $data = Mage::getSingleton('adminhtml/session')->getFormData(true);
+                if (!empty($data)) {
+                    $model->setData($data);
+                }
+
+                $model->setWebsite($website);
+                $model->setStore($store);
+                $model->setCode($type);
+
+                Mage::register('payone_core_config_payment_method', $model);
+                Mage::register('payone_core_config_active_scope', $this->determineActiveScope($website, $store));
+
+
+                $this->loadLayout();
+
+                $this->getLayout()->getBlock('head')->setCanLoadExtJs(true);
+
+                $this->renderLayout();
+            } else {
+                Mage::getSingleton('adminhtml/session')->addError(
+                    $this->helper()->__('PaymentMethod-Config does not exist.')
+                );
+                $this->_redirect('*/*/', array('_current' => true));
             }
-
-            $model->setWebsite($website);
-            $model->setStore($store);
-            $model->setCode($type);
-
-            Mage::register('payone_core_config_payment_method', $model);
-            Mage::register('payone_core_config_active_scope', $this->determineActiveScope($website, $store));
-
-
-            $this->loadLayout();
-
-            $this->getLayout()->getBlock('head')->setCanLoadExtJs(true);
-
-            $this->renderLayout();
-        }
-        else {
-            Mage::getSingleton('adminhtml/session')->addError(
-                $this->helper()->__('PaymentMethod-Config does not exist.')
-            );
+        } catch (Exception $e) {
+            Mage::getSingleton('adminhtml/session')->addError($e->getMessage());
             $this->_redirect('*/*/', array('_current' => true));
         }
     }
@@ -150,15 +154,20 @@ class Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
                 );
                 Mage::getSingleton('adminhtml/session')->setFormData(false);
 
-                if($model->getCode() == 'ratepay' && $model->getId()) { // redirect to edit-page so that the ratepay shop-IDs get requested from API
+                if (
+                    ($model->getCode() == 'ratepay'
+                        || $model->getCode() == 'ratepay_invoicing'
+                        || $model->getCode() == 'ratepay_direct_debit')
+                    && $model->getId()
+                ) {
+                    // redirect to edit-page so that the ratepay shop-IDs get requested from API
                     $this->_redirect('*/*/edit', array('id' => $model->getId(), '_current' => true));
                     return;
                 }
                 
                 $this->_redirect('*/*/', array('_current' => true));
                 return;
-            }
-            catch (Exception $e) {
+            } catch (Exception $e) {
                 Mage::getSingleton('adminhtml/session')->addError($e->getMessage());
                 Mage::getSingleton('adminhtml/session')->setFormData($data);
                 $this->_redirect('*/*/edit', array('id' => $this->getRequest()->getParam('id'), '_current' => true));
@@ -187,8 +196,8 @@ class Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
 
             try {
                 if ($this->determineActiveScope($website, $store) != 'default') {
-                   // Deleting payment configs is only allowed in default scope, go back to grid.
-                   $this->_redirect('*/*/index', array('website' => $website, 'store' => $store));
+                    // Deleting payment configs is only allowed in default scope, go back to grid.
+                    $this->_redirect('*/*/index', ['website' => $website, 'store' => $store]);
                     return;
                 }
 
@@ -206,14 +215,43 @@ class Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
                     Mage::helper('adminhtml')->__('PaymentMethod Config was successfully deleted.')
                 );
                 $this->_redirect('*/*/', array('_current' => true));
-            }
-            catch (Exception $e) {
+            } catch (Exception $e) {
                 Mage::getSingleton('adminhtml/session')->addError($e->getMessage());
                 $this->_redirect('*/*/edit', array('id' => $id, '_current' => true));
             }
         }
 
         $this->_redirect('*/*/', array('_current' => true));
+    }
+
+    public function initAmazonAction()
+    {
+        $this->getResponse()->setHeader('Content-Type', 'application/json', true);
+
+        $id = $this->getRequest()->getParam('id');
+        $configHelper = $this->getFactory()->helperConfig();
+        $config = $configHelper->getConfigPaymentMethodById($id);
+        $service = $this->getFactory()->getServicePaymentGenericpayment($config);
+        /** @var Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment $mapper */
+        $mapper = $service->getMapper();
+        $request = $mapper->requestAmazonPayGetConfiguration();
+        $response = $this->getFactory()->getServiceApiPaymentGenericpayment()->request($request);
+
+        if ($response instanceof Payone_Api_Response_Genericpayment_Ok) {
+            $result = (array) $response->getPayDataArray();
+            if (count(array_intersect(['client_id', 'seller_id'], array_keys($result))) !== 2) {
+                $this->getResponse()->setBody('{"result":"ERROR"}');
+                return;
+            }
+            $this->getResponse()->setBody('{"result":"OK"}');
+            /** @var $model Payone_Core_Model_Domain_Config_PaymentMethod */
+            $model = $this->getModelDomainConfigPaymentMethod()->load($id);
+            $model->setData('amz_client_id', $result['client_id']);
+            $model->setData('amz_seller_id', $result['seller_id']);
+            $model->save();
+        } else {
+            $this->getResponse()->setBody('{"result":"ERROR"}');
+        }
     }
 
     /**
@@ -225,10 +263,12 @@ class Payone_Core_Adminhtml_Payonecore_System_Config_PaymentController
      */
     protected function determineActiveScope($website = '', $store = '')
     {
-        if($store)
+        if ($store) {
             return 'stores';
-        if ($website)
+        }
+        if ($website) {
             return 'websites';
+        }
         return 'default';
     }
 

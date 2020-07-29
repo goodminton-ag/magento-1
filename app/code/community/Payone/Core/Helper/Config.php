@@ -37,11 +37,13 @@ class Payone_Core_Helper_Config
 
     /**
      * @param int $storeId
+     * @param bool $useCache
+     *
      * @return bool|Payone_Core_Model_Config_Interface
      */
-    public function getConfigStore($storeId = null)
+    public function getConfigStore($storeId = null, $useCache = true)
     {
-        $config = $this->getFactory()->getServiceInitializeConfig()->execute($storeId);
+        $config = $this->getFactory()->getServiceInitializeConfig()->execute($storeId, $useCache);
         return $config;
     }
 
@@ -91,9 +93,13 @@ class Payone_Core_Helper_Config
         $general = $this->getConfigGeneral($storeId);
         $defaultConfig = $general->getGlobal()->toArray();
         $invoiceTransmit = $general->getParameterInvoice()->getTransmitEnabled();
+        $alternativePriceCalculation = $general->getParameterInvoice()->getAlternativePriceCalculation();
 
         // Add invoice_transmit to defaultConfig
         $defaultConfig['invoice_transmit'] = $invoiceTransmit;
+
+        // Add alternative price calculation
+        $defaultConfig['alternative_price_calculation'] = $alternativePriceCalculation;
 
         $config = $this->getFactory()->getModelDomainConfigPaymentMethod();
         $config->load($id);
@@ -136,7 +142,7 @@ class Payone_Core_Helper_Config
     {
         $configId = $order->getPayment()->getData('payone_config_payment_method_id');
         if (!$configId) {
-            $message = 'Payment method configuration with id "' . $configId . '" not found.';
+            $message = 'Payment method configuration for method "'. $order->getPayment()->getMethod() .'" not found.';
             throw new Payone_Core_Exception_PaymentMethodConfigNotFound($message);
         }
 
@@ -155,7 +161,7 @@ class Payone_Core_Helper_Config
     {
         $configId = $quote->getPayment()->getData('payone_config_payment_method_id');
         if (!$configId) {
-            $message = 'Payment method configuration with id "' . $configId . '" not found.';
+            $message = 'Payment method configuration for method "'. $quote->getPayment()->getMethod() .'" not found.';
             throw new Payone_Core_Exception_PaymentMethodConfigNotFound($message);
         }
 
@@ -181,11 +187,6 @@ class Payone_Core_Helper_Config
         $configPayment = $this->getConfigPayment($iStoreId);
         $config = $configPayment->getMethodForQuote($method, $quote);
         return $config;
-    }
-
-    public function getShippingTaxClassId($storeId)
-    {
-        return $this->getStoreConfig(Mage_Tax_Model_Config::CONFIG_XML_PATH_SHIPPING_TAX_CLASS, $storeId);
     }
 
     /**
@@ -261,5 +262,28 @@ class Payone_Core_Helper_Config
     public function getStoreConfigFlag($path, $storeId = null)
     {
         return Mage::getStoreConfigFlag($path, $storeId);
+    }
+
+    /**
+     * @param string $storeId
+     * @param string $methodCode
+     * @return null|Payone_Core_Model_Config_Payment_Method_Interface
+     */
+    public function getConfigPaymentMethodByType($storeId, $methodCode)
+    {
+        $paymentConfigs = $this->getConfigPayment($storeId);
+
+        if (!$paymentConfigs->getMethods()) {
+            return null;
+        }
+
+        /** @var Payone_Core_Model_Config_Payment_Method_Interface $paymentConfig */
+        foreach ($paymentConfigs->getMethods() as $paymentConfig) {
+            if ($paymentConfig->getCode() === $methodCode && $paymentConfig->getEnabled() == 1) {
+                return $paymentConfig;
+            }
+        }
+
+        return null;
     }
 }

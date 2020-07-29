@@ -44,6 +44,18 @@ class Payone_Core_Model_Config_Misc_TransactionstatusProcessing
     /** @var int */
     protected $proxy_mode = 0;
 
+    /** @var int */
+    protected $logging_active = 0;
+
+    /** @var int */
+    protected $reporting_active = 0;
+
+    /** @var string */
+    protected $report_email = '';
+
+    /** @var int */
+    protected $retries = 0;
+
     public function init(array $data)
     {
         foreach ($data as $key => $value) {
@@ -123,4 +135,67 @@ class Payone_Core_Model_Config_Misc_TransactionstatusProcessing
         return $this->proxy_mode;
     }
 
+    /**
+     * @param int $logging_active
+     */
+    public function setLoggingActive($logging_active)
+    {
+        $this->logging_active = $logging_active;
+    }
+
+    /**
+     * @return int
+     */
+    public function getLoggingActive()
+    {
+        return $this->logging_active;
+    }
+
+    /**
+     * @param $reporting_active
+     */
+    public function setReportingActive($reporting_active)
+    {
+        $this->reporting_active = (int) $reporting_active;
+    }
+
+    /**
+     * @return int
+     */
+    public function getReportingActive()
+    {
+        return (int) $this->reporting_active;
+    }
+
+    /**
+     * @return string
+     */
+    public function getReportEmail()
+    {
+        return $this->report_email;
+    }
+
+    /**
+     * @param string $report_email
+     */
+    public function setReportEmail($report_email)
+    {
+        $this->report_email = $report_email;
+    }
+
+    /**
+     * @return int
+     */
+    public function getRetries()
+    {
+        return (int) $this->retries;
+    }
+
+    /**
+     * @param int $retries
+     */
+    public function setRetries($retries)
+    {
+        $this->retries = (int) $retries;
+    }
 }

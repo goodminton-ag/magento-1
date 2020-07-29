@@ -53,23 +53,31 @@ class Payone_Core_Model_Service_InitializeConfig
      * The Config Object will be cached
      *
      * @param int $storeId
+     * @param bool $useCache
+     *
      * @return Payone_Core_Model_Config_Interface
      */
-    public function execute($storeId = null)
+    public function execute($storeId = null, $useCache = true)
     {
         $this->setStoreId($storeId);
 
         $helperRegistry = $this->helperRegistry();
         $registryKey = $this->getConfigRegistryKey($storeId);
-        $config = $helperRegistry->registry($registryKey);
-        if ($config instanceof Payone_Core_Model_Config_Interface) {
-            return $config;
-        }
 
-        $config = $this->loadFromCache();
-        if ($config instanceof Payone_Core_Model_Config_Interface) {
-            $helperRegistry->register($registryKey, $config);
-            return $config;
+        if($useCache === true) {
+            $config = $helperRegistry->registry($registryKey);
+            if (($config instanceof Payone_Core_Model_Config_Interface) && $config->getStoreId() === $storeId) {
+                return $config;
+            }
+
+            $config = $this->loadFromCache();
+            if (($config instanceof Payone_Core_Model_Config_Interface) && $config->getStoreId() === $storeId) {
+                // MAGE-466 : force unregister the variable if set already.
+                // Avoids the "Mage registry key "payone_core_config_1" already exists" exception
+                $helperRegistry->unregister($registryKey);
+                $helperRegistry->register($registryKey, $config);
+                return $config;
+            }
         }
 
         /** @var $config Payone_Core_Model_Config */
@@ -95,7 +103,11 @@ class Payone_Core_Model_Service_InitializeConfig
         $config->setMisc($misc);
 
         // Caching
-        $this->saveToCache($config);
+        if ($useCache === true) {
+            $this->saveToCache($config);
+            $helperRegistry->unregister($registryKey);
+            $helperRegistry->register($registryKey, $config);
+        }
 
         return $config;
     }
@@ -167,9 +179,13 @@ class Payone_Core_Model_Service_InitializeConfig
         $global = $general->getGlobal();
         $defaultConfig = $global->toArray();
         $invoiceTransmit = $general->getParameterInvoice()->getTransmitEnabled();
+        $alternativePriceCalculation = $general->getParameterInvoice()->getAlternativePriceCalculation();
 
         // Add invoice_transmit to defaultConfig
         $defaultConfig['invoice_transmit'] = $invoiceTransmit;
+
+        // Add alternative price calculation
+        $defaultConfig['alternative_price_calculation'] = $alternativePriceCalculation;
 
         /** @var $payment Payone_Core_Model_Config_Payment */
         $payment = $this->getConfigModel(self::CONFIG_SECTION_PAYMENT);
@@ -224,8 +240,8 @@ class Payone_Core_Model_Service_InitializeConfig
             $storeId = $this->getStoreId();
         }
 
-        if ($storeId === null) {
-            $storeId = 0;
+        if ($storeId === null) { // storeId = null is translated to *current store id* by magento
+            $storeId = Mage::app()->getStore()->getId();
         }
 
         $cacheId = sprintf(self::CONIG_REGISTRY_KEY, $storeId);
@@ -242,8 +258,8 @@ class Payone_Core_Model_Service_InitializeConfig
             $storeId = $this->getStoreId();
         }
 
-        if ($storeId === null) {
-            $storeId = 0;
+        if ($storeId === null) { // storeId = null is translated to *current store id* by magento
+            $storeId = Mage::app()->getStore()->getId();
         }
 
         $cacheId = sprintf(self::CONFIG_CACHE_ID, $storeId);

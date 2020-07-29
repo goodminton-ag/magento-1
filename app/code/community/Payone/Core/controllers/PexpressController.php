@@ -70,8 +70,7 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
 
             $this->_checkout->savePayment(
                 array(
-                'method' => Payone_Core_Model_System_Config_PaymentMethodCode::WALLET,
-                'payone_wallet_type' => Payone_Api_Enum_WalletType::PAYPAL_EXPRESS,
+                'method' => Payone_Core_Model_System_Config_PaymentMethodCode::WALLETPAYPALEXPRESS,
                 'payone_config_payment_method_id' => $this->_config->getId()
                 )
             );
@@ -113,6 +112,18 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
             Mage::logException($e);
         }
 
+        $this->_redirect('checkout/cart');
+    }
+
+    public function errorAction()
+    {
+        $this->_getCheckoutSession()->addError($this->__('An error occured during the PayPal Express Checkout.'));
+        $this->_redirect('checkout/cart');
+    }
+
+    public function cancelAction()
+    {
+        $this->_getCheckoutSession()->addSuccess($this->__('The PayPal Express Checkout has been canceled.'));
         $this->_redirect('checkout/cart');
     }
 
@@ -164,11 +175,18 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
                 }
             }
 
+            $session = $this->_getCheckoutSession();
+            if ($this->_getQuote()->getSubtotal() != $session->getPayoneGenericpaymentSubtotal()) {
+                // The basket was changed - abort current checkout
+                $this->_getCheckoutSession()->addError($this->__('An error occured during the PayPal Express Checkout.'));
+                $this->_redirect('checkout/cart');
+                return;
+            }
+
             $this->_initCheckout();
             $this->_checkout->place($this->_initWorkOrderId());
 
             // prepare session to success or cancellation page
-            $session = $this->_getCheckoutSession();
             $session->clearHelperData();
 
             // "last successful quote"
@@ -184,6 +202,31 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
                 $agreement = $this->_checkout->getBillingAgreement();
                 if ($agreement) {
                     $session->setLastBillingAgreementId($agreement->getId());
+                }
+
+                $info = $this->_getQuote()->getPayment()->getMethodInstance()->getInfoInstance();
+                if (!empty($info->getPayoneBillingAddressaddition())) {
+                    $billingStreet = $order->getBillingAddress()->getStreet();
+                    if (is_array($billingStreet)) {
+                        $billingStreet[] = $info->getPayoneBillingAddressaddition();
+                    }
+                    else {
+                        $billingStreet .= PHP_EOL . $info->getPayoneBillingAddressaddition();
+                    }
+                    $order->getBillingAddress()->setStreet($billingStreet);
+                    $order->getBillingAddress()->save();
+                }
+
+                if (!empty($info->getPayoneShippingAddressaddition())) {
+                    $shippingStreet = $order->getShippingAddress()->getStreet();
+                    if (is_array($shippingStreet)) {
+                        $shippingStreet[] = $info->getPayoneShippingAddressaddition();
+                    }
+                    else {
+                        $shippingStreet .= PHP_EOL . $info->getPayoneShippingAddressaddition();
+                    }
+                    $order->getShippingAddress()->setStreet($shippingStreet);
+                    $order->getShippingAddress()->save();
                 }
             }
 
@@ -233,7 +276,7 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
             Mage::throwException(Mage::helper('payone_core')->__('Unable to initialize Payone Express Checkout.'));
         }
 
-        $methodInstance = Mage::helper('payment')->getMethodInstance(Payone_Core_Model_System_Config_PaymentMethodCode::WALLET);
+        $methodInstance = Mage::helper('payment')->getMethodInstance(Payone_Core_Model_System_Config_PaymentMethodCode::WALLETPAYPALEXPRESS);
         $this->_config = $methodInstance->getConfigForQuote($quote);
 
         $this->_checkout = Mage::getModel(
@@ -246,8 +289,9 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
 
     /**
      * Set and get $workOrderId to the session
-     *
-     * @param int $workOrderId
+     * @param null $workOrderId
+     * @return $this
+     * @throws Mage_Core_Exception
      */
     private function _initWorkOrderId($workOrderId = null)
     {
@@ -282,7 +326,7 @@ class Payone_Core_PexpressController extends Payone_Core_Controller_Abstract
     /**
      * Return checkout quote object
      *
-     * @return Mage_Sale_Model_Quote
+     * @return Mage_Sales_Model_Quote
      */
     private function _getQuote()
     {

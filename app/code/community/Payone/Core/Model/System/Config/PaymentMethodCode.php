@@ -35,20 +35,37 @@ class Payone_Core_Model_System_Config_PaymentMethodCode extends Payone_Core_Mode
     const PREFIX = 'payone_';
 
     const ADVANCEPAYMENT = 'payone_advance_payment';
+    const AMAZONPAY = 'payone_amazon_pay';
     const CASHONDELIVERY = 'payone_cash_on_delivery';
     const CREDITCARD = 'payone_creditcard';
-    const CREDITCARD_IFRAME = 'payone_creditcard_iframe';
+    //const CREDITCARD_IFRAME = 'payone_creditcard_iframe'; // MAGE-392: Deprecated, method is removed
     const DEBITPAYMENT = 'payone_debit_payment';
     const INVOICE = 'payone_invoice';
     const SAFEINVOICE = 'payone_safe_invoice';
+    const ONLINEBANKTRANSFERBCT = 'payone_online_bank_transfer_bct';
+    const ONLINEBANKTRANSFERGIROPAY = 'payone_online_bank_transfer_giropay';
+    const ONLINEBANKTRANSFERP24 = 'payone_online_bank_transfer_p24';
+    const ONLINEBANKTRANSFEREPS = 'payone_online_bank_transfer_eps';
+    const ONLINEBANKTRANSFERPFF = 'payone_online_bank_transfer_pff';
+    const ONLINEBANKTRANSFERPFC = 'payone_online_bank_transfer_pfc';
+    const ONLINEBANKTRANSFERIDL = 'payone_online_bank_transfer_idl';
+    const ONLINEBANKTRANSFERSOFORT = 'payone_online_bank_transfer_sofortueberweisung';
     const ONLINEBANKTRANSFER = 'payone_online_bank_transfer';
     const WALLET = 'payone_wallet';
     const BARZAHLEN = 'payone_barzahlen';
     const RATEPAY = 'payone_ratepay';
+    const RATEPAYINVOICING = 'payone_ratepay_invoicing';
+    const RATEPAYDIRECTDEBIT = 'payone_ratepay_direct_debit';
     const PAYOLUTION = 'payone_payolution';
     const PAYOLUTIONINVOICING = 'payone_payolution_invoicing';
     const PAYOLUTIONDEBIT = 'payone_payolution_debit';
     const PAYOLUTIONINSTALLMENT = 'payone_payolution_installment';
+    const PAYMENTGUARANTEEINVOICE = 'payone_payment_guarantee_invoice';
+    const WALLETPAYDIREKT = 'payone_wallet_paydirekt';
+    const WALLETPAYDIREKTEXPRESS = 'payone_wallet_paydirekt_express';
+    const WALLETPAYPALEXPRESS = 'payone_wallet_paypal_express';
+    const WALLETALIPAY = 'payone_wallet_alipay';
+//    const MASTERPASS =  'payone_masterpass'; // MAGE-457 : method removed
 
     /**
      * @return array
@@ -57,20 +74,37 @@ class Payone_Core_Model_System_Config_PaymentMethodCode extends Payone_Core_Mode
     {
         return array(
             self::ADVANCEPAYMENT => 'Advance Payment',
+            self::AMAZONPAY => 'Amazon Pay',
             self::CASHONDELIVERY => 'Cash on Delivery',
             self::CREDITCARD => 'Creditcard',
-            self::CREDITCARD_IFRAME => 'Creditcard Channel Frontend',
+            //self::CREDITCARD_IFRAME => 'Creditcard Channel Frontend', // MAGE-392: Deprecated, method is removed
             self::DEBITPAYMENT => 'Debit Payment',
             self::INVOICE => 'Invoice',
             self::SAFEINVOICE => 'Safe Invoice',
             self::ONLINEBANKTRANSFER => 'Online Bank Transfer',
             self::WALLET => 'Wallet',
             self::BARZAHLEN => 'Barzahlen',
-            self::RATEPAY => 'RatePay',
+            self::RATEPAY => 'RatePay Installments',
+            self::RATEPAYINVOICING => 'RatePay Invoicing',
+            self::RATEPAYDIRECTDEBIT => 'Ratepay Direct Debit',
             //self::PAYOLUTION => 'Payolution',
-            self::PAYOLUTIONINVOICING => 'Payolution Invoicing',
-            self::PAYOLUTIONDEBIT => 'Payolution Debit',
-            self::PAYOLUTIONINSTALLMENT => 'Payolution Installment'
+            self::PAYOLUTIONINVOICING => 'Paysafe Pay Later™ Invoicing',
+            self::PAYOLUTIONDEBIT => 'Paysafe Pay Later™ Debit',
+            self::PAYOLUTIONINSTALLMENT => 'Paysafe Pay Later™ Installment',
+            self::PAYMENTGUARANTEEINVOICE => 'Invoice with Payment Guarantee',
+            self::WALLETPAYDIREKT => 'Paydirekt',
+            self::WALLETPAYDIREKTEXPRESS => 'Paydirekt Express',
+            self::WALLETPAYPALEXPRESS => 'Paypal Express',
+            self::WALLETALIPAY => 'AliPay',
+            self::ONLINEBANKTRANSFERSOFORT => 'Sofortueberweisung',
+            self::ONLINEBANKTRANSFERGIROPAY => 'Giropay',
+            self::ONLINEBANKTRANSFEREPS => 'eps Online Ueberweisung',
+            self::ONLINEBANKTRANSFERIDL => 'Ideal',
+            self::ONLINEBANKTRANSFERPFF => 'PostFinance E-Finance',
+            self::ONLINEBANKTRANSFERPFC => 'PostFinance Card',
+            self::ONLINEBANKTRANSFERP24 => 'Przelewy24',
+            self::ONLINEBANKTRANSFERBCT => 'Bancontact',
+//            self::MASTERPASS => 'Masterpass' // MAGE-457 : method removed
         );
     }
 }

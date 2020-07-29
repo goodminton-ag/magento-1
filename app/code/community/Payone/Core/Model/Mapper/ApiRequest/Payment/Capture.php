@@ -38,6 +38,9 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
     /** @var Mage_Sales_Model_Order_Invoice */
     protected $invoice = null;
 
+    /** @var Payone_Api_Request_Parameter_Capture_Invoicing_Transaction */
+    protected $invoicing;
+
 
     /**
      * @return Payone_Api_Request_Capture
@@ -64,22 +67,44 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
         $business = $this->mapBusinessParameters();
         $request->setBusiness($business);
 
+        /** MAGE-410 add invoiceId if available, no matter which configuration state is set */
+        $invoice = $this->getInvoice();
+        if (!empty($invoice) && $invoice->hasData()) {
+            $invoiceIncrementId = $invoice->getIncrementId();
+            if ($invoiceIncrementId === null) {
+                $invoiceIncrementId = $this->fetchNewIncrementId($invoice);
+            }
+            $this->getInvoicing()->setInvoiceid($invoiceIncrementId);
+        }
+
         /** Set Invoicing-Parameter only if enabled in Config */
         if ($this->mustTransmitInvoiceData()) {
-            $invoicing = $this->mapInvoicingParameters();
-            if (!empty($invoicing)) {
-                $request->setInvoicing($invoicing);
+            $this->mapInvoicingParameters();
+
+            if ($this->mustAdaptCalculation()) {
+                /** @var Payone_Api_Request_Parameter_Invoicing_Item $item */
+                foreach ($this->getInvoicing()->getItems() as $item) {
+                    $item->setPr($item->getNo() * $item->getPr());
+                    $item->setDe('Menge: ' . $item->getNo() . ' ' . $item->getDe());
+                    $item->setNo(1);
+                }
             }
         }
 
-        $paymentMethod = $this->getPaymentMethod();
-        if($paymentMethod instanceof Payone_Core_Model_Payment_Method_Ratepay) {
-            $info = $paymentMethod->getInfoInstance();
+        if (!empty($this->invoicing)) {
+            $request->setInvoicing($this->invoicing);
+        }
 
+        $paymentMethod = $this->getPaymentMethod();
+        if (
+            $paymentMethod instanceof Payone_Core_Model_Payment_Method_Ratepay ||
+            $paymentMethod instanceof Payone_Core_Model_Payment_Method_RatepayInvoicing ||
+            $paymentMethod instanceof Payone_Core_Model_Payment_Method_RatepayDirectDebit
+        ) {
             $payData = new Payone_Api_Request_Parameter_Paydata_Paydata();
             $payData->addItem(
                 new Payone_Api_Request_Parameter_Paydata_DataItem(
-                    array('key' => 'shop_id', 'data' => $info->getPayoneRatepayShopId())
+                    array('key' => 'shop_id', 'data' => $paymentMethod->getInfoInstance()->getPayoneRatepayShopId())
                 )
             );
             $request->setPaydata($payData);
@@ -87,7 +112,7 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
         } elseif($paymentMethod instanceof Payone_Core_Model_Payment_Method_PayolutionDebit ||
                  $paymentMethod instanceof Payone_Core_Model_Payment_Method_PayolutionInvoicing ||
                  $paymentMethod instanceof Payone_Core_Model_Payment_Method_PayolutionInstallment ||
-                $paymentMethod instanceof Payone_Core_Model_Payment_Method_Payolution)
+                 $paymentMethod instanceof Payone_Core_Model_Payment_Method_Payolution)
         {
             $info = $paymentMethod->getInfoInstance();
             if($info->getPayoneIsb2b() == '1') {
@@ -129,7 +154,7 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
         if(!empty($invoice) && $invoice->hasData()) {
             $request->setAmount($invoice->getGrandTotal());
             if($blCurrencyConvert) {
-                $request->setAmount($order->getBaseGrandTotal());
+                $request->setAmount($invoice->getBaseGrandTotal());
             }
         } else {
             $request->setAmount($this->getAmount());
@@ -152,7 +177,15 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
 
         // settleaccount possibilities depend on payment method:
         if ($paymentMethod instanceof Payone_Core_Model_Payment_Method_AdvancePayment
-                or $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransfer
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransfer
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferSofortueberweisung
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferGiropay
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferEps
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferIdl
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferPostFinanceEfinance
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferPostFinanceCard
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferP24
+                || $paymentMethod instanceof Payone_Core_Model_Payment_Method_OnlineBankTransferBct
         ) {
             $payment = $paymentMethod->getInfoInstance();
             // Advancepayment and OnlineBankTransfer use NO/AUTO
@@ -175,25 +208,14 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
         return $business;
     }
 
-    /**
-     * @return Payone_Api_Request_Parameter_Invoicing_Transaction
-     */
     protected function mapInvoicingParameters()
     {
         $order = $this->getOrder();
         $invoice = $this->getInvoice();
 
-        $invoicing = new Payone_Api_Request_Parameter_Capture_Invoicing_Transaction();
         if (!empty($invoice) && $invoice->hasData()) {
-            $invoiceIncrementId = $invoice->getIncrementId();
-            if ($invoiceIncrementId === null) {
-                $invoiceIncrementId = $this->fetchNewIncrementId($invoice);
-            }
-
             $appendix = $this->getInvoiceAppendix($invoice);
-
-            $invoicing->setInvoiceid($invoiceIncrementId);
-            $invoicing->setInvoiceappendix($appendix);
+            $this->getInvoicing()->setInvoiceappendix($appendix);
 
             // Regular order items:
             foreach ($invoice->getItemsCollection() as $itemData) {
@@ -215,7 +237,7 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
                 $params['id'] = $itemData->getSku();
                 $params['de'] = $itemData->getName();
                 $params['no'] = $number;
-                $params['pr'] = $itemData->getPriceInclTax();
+                $params['pr'] = $this->getItemPrice($itemData);
 
                 // We have to load the tax percentage from the order item
 //                $params['va'] = number_format($orderItem->getTaxPercent(), 0, '.', '');
@@ -223,18 +245,18 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
 
                 $item = new Payone_Api_Request_Parameter_Invoicing_Item();
                 $item->init($params);
-                $invoicing->addItem($item);
+                $this->getInvoicing()->addItem($item);
             }
 
             // Shipping / Fees:
             if ($invoice->getShippingInclTax() > 0) {
-                $invoicing->addItem($this->mapShippingFeeAsItem());
+                $this->getInvoicing()->addItem($this->mapShippingFeeAsItem());
             }
 
             // Discounts:
-            $discountAmount = abs($invoice->getDiscountAmount()); // Discount Amount is positive on invoice.
+            $discountAmount = abs($this->getInvoiceDiscountAmount($invoice)); // Discount Amount is positive on invoice.
             if ($discountAmount > 0) {
-                $invoicing->addItem($this->mapDiscountAsItem(-1 * $discountAmount));
+                $this->getInvoicing()->addItem($this->mapDiscountAsItem(-1 * $discountAmount));
             }
         }
 
@@ -243,11 +265,8 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
         if ($this->getPaymentMethod() instanceof Payone_Core_Model_Payment_Method_SafeInvoice
                 or $this->helperRegistry()->isPaymentCancelRegistered($payment)
         ) {
-            $invoicing->setCapturemode($this->mapCaptureMode());
+            $this->getInvoicing()->setCapturemode($this->mapCaptureMode());
         }
-
-
-        return $invoicing;
     }
 
     /**
@@ -315,5 +334,43 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Capture
     public function getEventType()
     {
         return self::EVENT_TYPE;
+    }
+
+    /**
+     * @param Mage_Sales_Model_Order_Invoice_Item $itemData
+     * @return float
+     */
+    private function getItemPrice(Mage_Sales_Model_Order_Invoice_Item $itemData)
+    {
+        if($this->configPayment->getCurrencyConvert()) {
+            return $itemData->getBasePriceInclTax();
+        }
+
+        return $itemData->getPriceInclTax();
+    }
+
+    /**
+     * @param Mage_Sales_Model_Order_Invoice $invoice
+     * @return float
+     */
+    private function getInvoiceDiscountAmount(Mage_Sales_Model_Order_Invoice $invoice)
+    {
+        if($this->configPayment->getCurrencyConvert()) {
+            return $invoice->getBaseDiscountAmount();
+        }
+
+        return $invoice->getDiscountAmount();
+    }
+
+    /**
+     * @return Payone_Api_Request_Parameter_Capture_Invoicing_Transaction
+     */
+    private function getInvoicing()
+    {
+        if (empty($this->invoicing)) {
+            $this->invoicing = new Payone_Api_Request_Parameter_Capture_Invoicing_Transaction();
+        }
+
+        return $this->invoicing;
     }
 }

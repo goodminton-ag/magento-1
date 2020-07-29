@@ -186,6 +186,49 @@ class Payone_Core_Helper_Data
         return true;
     }
 
+    /**
+     * @param  string $sMessage
+     * @param  int $iStoreId
+     * @param  int $iLogLevel
+     * @return void
+     */
+    public function logCronjobMessage($sMessage, $iStoreId = null, $iLogLevel = Zend_Log::INFO)
+    {
+        $oConfig = $this->helperConfig()->getConfigMisc($iStoreId)->getTransactionstatusProcessing();
+        if ($oConfig->getLoggingActive()) {
+            Mage::log($sMessage, $iLogLevel, 'payone_cron.log', true);
+        }
+    }
+
+    /**
+     * @param null $iStoreId
+     * @return int
+     */
+    public function getTransactionProcessingReportingActive($iStoreId = null)
+    {
+        $oConfig = $this->helperConfig()->getConfigMisc($iStoreId)->getTransactionstatusProcessing();
+        return $oConfig->getReportingActive();
+    }
+
+    /**
+     * @param null $iStoreId
+     * @return string
+     */
+    public function getTransactionProcessingReportEmail($iStoreId = null)
+    {
+        $oConfig = $this->helperConfig()->getConfigMisc($iStoreId)->getTransactionstatusProcessing();
+        return $oConfig->getReportEmail();
+    }
+
+    /**
+     * @param null $iStoreId
+     * @return int
+     */
+    public function getTransactionProcessingMaxRetryCount($iStoreId = null)
+    {
+        $oConfig = $this->helperConfig()->getConfigMisc($iStoreId)->getTransactionstatusProcessing();
+        return $oConfig->getRetries();
+    }
 
     /**
      * Format Magento Adress "street" into one string.
@@ -306,5 +349,50 @@ class Payone_Core_Helper_Data
         }
 
         return false;
+    }
+
+    /**
+     * Get shipping tax rate for the given quote
+     *
+     * @param Mage_Sales_Model_Quote $oQuote
+     * @return double
+     */
+    public function getShippingTaxRate($oQuote)
+    {
+        $oStore = Mage::app()->getStore();
+
+        /** @var Mage_Tax_Model_Calculation $oTax */
+        $oTax = Mage::getSingleton('tax/calculation');
+        $request = $oTax->getRateRequest($oQuote->getShippingAddress(), $oQuote->getBillingAddress(), null, $oStore);
+        $request->setProductClassId(Mage::helper('tax')->getShippingTaxClass($oStore));
+        $dPercent = $oTax->getRate($request);
+
+        return $dPercent;
+    }
+
+    /**
+     * @param string $sourceType
+     * @return array
+     */
+    public function getBankGroups($sourceType)
+    {
+        if (empty($sourceType)) {
+             return array();
+        }
+
+        $bankGroups = Mage::getModel('payone_core/system_config_onlinebanktransferGroups')->toArray();
+        if(!isset($bankGroups[$sourceType])) {
+            return array();
+        }
+
+        return $bankGroups[$sourceType];
+    }
+
+    /**
+     * return string
+     */
+    public function getPmiLink()
+    {
+        return "<a target='_blank' href='https://pmi.pay1.de/'>Payone Merchant Interface</a>";
     }
 }

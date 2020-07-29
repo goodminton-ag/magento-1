@@ -10,25 +10,34 @@ The PAYONE payment extension for MAGENTO is with 50,000 downloads already a succ
 * Supports the multi-shipping extension
 * Supports simplified PCI DSS conformity in accordance with SAQ A
 * Payment methods can be automatically hidden depending on the amount of the order and the credit rating of the customer
-* Find all currently supported payment methods on www.payone.com/magento
+* Find all currently supported payment methods on www.payone.com
+
+## Installation
+It is highly recommended to install the latest release from Github (either using modman or manual installation). The Magento Marketplace is updated infrequently.
+
+This module requires at least PHP 5.6. Please, please use a more recent PHP version.
 
 ## More information
-Documentation for Magento: http://www.payone.com/uploads/media/PAYONE_Documentation_Magento-Payment-Extension.pdf<br>
+Documentation for Magento: see https://docs.payone.com/display/public/INT/Magento+1+Extension<br>
 Videoguide: Installation and configuration: https://www.youtube.com/playlist?list=PLlzKa20PSzukaPBvUhxxpo3oqNs0mUkpa<br>
-More information about Magento on https://www.payone.com/magento
+
+## Related projects
+Related projects can provide additional features and perks that can't be included in the main package for various reasons. These projects are not officially supported by BS PAYONE and can cause unexpected changes in module behavior. Support, if any, is given in the respective projects alone:
+
+* [Pragmatic-Apps/magento1-payone-postponecapture](https://github.com/Pragmatic-Apps/magento1-payone-postponecapture): Provides automatic capture when an order is shipped for Payolution payment methods.
+
+* [Pragmatic-Apps/magento1-payone-restrictproducts](https://github.com/Pragmatic-Apps/magento1-payone-restrictproducts): Extension that allows to automatically disable selected methods when certain products are in the shopping cart. This is necessary to comply with requirements of some payment provides (e.g. when it is not allowed to sell coupons).
 
 ## Contact
-PAYONE GmbH<br>
+BS PAYONE GmbH<br>
+Office Kiel<br>
 Fraunhoferstraße 2–4<br>
 24118 Kiel, Germany<br>
 Phone +49 431 25968-400<br>
 Fax +49 431 25968-1400<br>
 magento@payone.de<br>
-www.payone.com/magento
-
-## License
-See our License Agreement at: https://www.payone.com/fileadmin/downloads/sonstiges/PAYONE_Haftungs_und_Lizenzvereinbarung_Extensions.pdf
+www.payone.com
 
 ## About PAYONE
-PAYONE provides business solutions for comprehensive automated processing of all payments in e-commerce. The payment service provider is part of the Sparkassen-Finanzgruppe and authorised as a credit institution by the German Federal Financial Supervisory Authority. PAYONE's service portfolio includes acceptance and processing for national and international payment methods, plus all payment services. Standardised interfaces and extensions allow simple integration into existing e-commerce and IT-systems whilst maintaining strict security standards.<br>
-PAYONE ranks amongst the 50 fastest-growing technology companies in Germany and serves over 4.000 e-commerce clients from a variety of sectors and countries, including well-known companies such as Immonet, Globetrotter Ausrüstung, HD PLUS, Fujitsu, Zalando, Hawesko, Sony Music and Hallhuber. PAYONE employs a workforce of over 150.
+Since the end of August 2017, the two payment specialist companies PAYONE and B+S Card Service merged to become BS PAYONE GmbH. All current partnerships will be maintained the way they are. APIs, interfaces, and other technical parameters will stay the same. Your current contact persons will continue to gladly be at your service.<br>
+BS PAYONE GmbH is headquartered in Frankfurt am Main and is one of the leading omnichannel payment providers in Europe. In addition to providing customer support to numerous Sparkasse banks, the full-service payment service provider also provides cashless payment transactions services to more than 255,000 customers from various branches – whether that be in stationary retail or when completing e-commerce and mobile payment transactions.

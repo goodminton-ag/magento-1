@@ -32,6 +32,10 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
     this.config = config;
     this.origMethod = '';
     this.iframes = false;
+    this.ccTypeAutoRecognition = 0;
+    this.configActivatedCcTypes = '';
+    this.supportedCardTypes = null;
+    this.configCvcLength = null;
 
     /**
      * Enhances payment.save and runs Validate and CreditCardCheck for CreditCards
@@ -60,12 +64,31 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
     this.initHosted = function (fieldconfig, type_id) {
         var configId = false;
         var elementCcType = $('payone_creditcard_cc_type_select');
+        var iFrameCvc = $("payone_creditcard_cc_cid_div");
+        var configUseCvc = $("payone_cc_use_cvc");
+
         if (elementCcType != undefined) {
+            // MAGE-365: Set the card type to first available to set up correct configuration
+            if (elementCcType.value === '') {
+                elementCcType.value = elementCcType.options[1].value;
+            }
+
             var ccTypeConfigKey = elementCcType.value;
             var ccTypeSplit = ccTypeConfigKey.split('_');
             configId = ccTypeSplit[0];
             var ccType = ccTypeSplit[1];
             $("payone_creditcard_cc_type").setValue(ccType);
+
+            if (configUseCvc.value === '0') {
+                iFrameCvc.hide();
+            }
+            else {
+                if (elementCcType.length > 1 && $('payone_cc_check_validation_types').value.indexOf(ccType) != -1) {
+                    iFrameCvc.hide();
+                }
+            }
+            updateCcLogo(ccType);
+            updateCvcRequirement(ccType, this.configCvcLength, iFrameCvc);
         }
 
         aConfig = this.getConfig();
@@ -74,18 +97,36 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
         var iframes = new Payone.ClientApi.HostedIFrames(fieldconfig, request);
         iframes.setCardType(ccType);
 
+        var that = this;
         document.getElementById(type_id).onchange = function () {
             var elementCcType = $('payone_creditcard_cc_type_select');
+
             if (elementCcType != undefined) {
+
                 var ccTypeConfigKey = elementCcType.value;
                 var ccTypeSplit = ccTypeConfigKey.split('_');
                 var ccType = ccTypeSplit[1];
+                var selectedValueIFrame = ccTypeConfigKey.substring(ccTypeConfigKey.indexOf("_") + 1);
+                if($('payone_cc_check_validation_types').value.indexOf(selectedValueIFrame) != -1 || configUseCvc.value === '0'){
+                    iFrameCvc.hide();
+                } else {
+                    iFrameCvc.show();
+                    updateCvcRequirement(ccType, that.configCvcLength, iFrameCvc);
+                }
                 iframes.setCardType(ccType); // on change: set new type of credit card to process
+                updateCcLogo(ccType);
             }
         };
         this.iframes = iframes;
+
+        // MAGE-365: Set the card type empty ("Please select") to force selection and trigger CVC check
+        if (elementCcType != undefined) {
+            elementCcType.value = '';
+            updateCcLogo('');
+        }
+
         return iframes;
-    }
+    };
 
     /**
      * Trigger CVC Code as configured
@@ -95,14 +136,19 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
     this.displayCheckCvc = function (element) {
         config = $('payone_creditcard_config_cvc').value.evalJSON();
         ccKey = element.value;
+
+        var selectedValue = element.value.substring(element.value.indexOf("_") + 1);
+
         var cvcDiv = $("payone_creditcard_cc_cid_div");
         if (cvcDiv != undefined && cvcDiv != null) {
             configCcKey = config[ccKey];
-            if (configCcKey != undefined && (configCcKey == 'always' || (configCcKey == 'only_first' && $('payone_cc_check_validation').value == 1))) {
-                cvcDiv.show();
+            //check if selected creditcard is in hideCvcTypes
+            if($('payone_cc_check_validation_types').value.indexOf(selectedValue) != -1){
+                cvcDiv.hide();
                 $('payone_cc_check_validation').value = 1;
             } else {
-                cvcDiv.hide();
+                cvcDiv.show();
+
             }
         }
     };
@@ -155,12 +201,12 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
     this.creditcardcheckHosted = function () {
         if (this.iframes.isComplete()) {
             $('payone_creditcard_hosted_error').hide();
-            $('payone_creditcard_cc_owner').value = $('firstname').value + ' ' + $('lastname').value;            
             this.iframes.creditCardCheck('processPayoneResponseCCHosted');
         } else {
             $('payone_creditcard_hosted_error').show();
+            $('payone_creditcard_hosted_error').scrollTo();
         }
-    }
+    };
 
     /**
      * Collect PAYONE CreditCardCheck Request Parameters
@@ -174,7 +220,6 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
             'cardtype':$('payone_creditcard_cc_type').value
         };
         if($('payone_pseudocardpan').value == '') {
-            data.cardholder = $('payone_creditcard_cc_owner').value;
             data.cardpan = $('payone_creditcard_cc_number').value;
         } else {
             data.pseudocardpan = $('payone_pseudocardpan').value;
@@ -210,6 +255,14 @@ PAYONE.Service.CreditCardCheck = function (handler, form, config) {
         }
 
         return this.config;
+    };
+
+    this.getSupportedCardTypes = function () {
+        if (this.supportedCardTypes === null) {
+            this.supportedCardTypes = this.configActivatedCcTypes.split(',');
+        }
+
+        return this.supportedCardTypes;
     };
 };
 
@@ -461,4 +514,30 @@ function payoneChangedCreditCardInfo()
 function processPayoneResponseCCHosted(response) 
 {
     payone.handleResponseCreditcardCheck(response, true);
+}
+
+function updateCcLogo(detectedCardtype)
+{
+    var image = $('payone_creditcard_cc_type_logo').children[0];
+    image.style.display = 'none';
+    if (typeof detectedCardtype !== 'undefined' && detectedCardtype !== '') {
+        image.src = 'https://cdn.pay1.de/cc/' + detectedCardtype.toLowerCase() + '/s/default.png';
+        image.style.display = 'inline';
+    }
+}
+
+function updateCvcRequirement(cardType, cvcLength, iFrameCvc)
+{
+    if (!cvcLength.hasOwnProperty(cardType)) {
+        iFrameCvc.classList.remove('required-entry');
+    }
+    else{
+        var expectedLength = cvcLength[cardType];
+        if (expectedLength === false || typeof expectedLength === 'undefined') {
+            iFrameCvc.classList.remove('required-entry');
+        }
+        else {
+            iFrameCvc.classList.add('required-entry');
+        }
+    }
 }

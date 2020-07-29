@@ -36,17 +36,16 @@ $getPayolutionTyp = $this->payolutionTypeMapping();
             </div>
             <div id="<?php echo $code ?>_main_block">
                 <div class="field" id="<?php echo $code; ?>_installment_wrap2"></div>
-                <?php if ($this->isB2BMode()) { ?>
+                <?php if ($this->isB2BMode() && $getPayolutionTyp[$code] === Payone_Api_Enum_PayolutionType::PYV) { ?>
                     <div id="<?php echo $code; ?>_b2b_wrap" class="field">
                         <div class="input-box">
                             <label
-                                for="<?php echo $code ?>_trade_registry_number"><?php echo $this->__('Company trade registry number') ?>
-                                <span class="required">*</span>
+                                for="<?php echo $code ?>_vat_id"><?php echo $this->__('VAT ID number') ?>
                             </label>
                             <br class="clear"/>
-                            <input type="text" id="<?php echo $code ?>_trade_registry_number"
-                                   name="payment[payone_trade_registry_number]"
-                                   value="" title="" class="required-entry input-text no-submit"/>
+                            <input type="text" id="<?php echo $code ?>_vat_id"
+                                   name="payment[payone_vat_id]"
+                                   value="" title="" class="input-text no-submit"/>
                         </div>
                     </div>
                 <?php } ?>
@@ -63,14 +62,14 @@ $getPayolutionTyp = $this->payolutionTypeMapping();
                         </div>
                     </div>
                 <?php endif;?>
-                <?php if ($this->showBirthdayFields()) { ?>
+                <?php if ($this->showBirthdayFields($getPayolutionTyp[$code])) { ?>
                     <div id="<?php echo $code; ?>_birthday_wrap" class="field">
                         <label for="<?php echo $code ?>_additional_fields_customer_dob_month"
                                class="required"><em>*</em><?php echo $this->__('Date of birth (DD MM YYYY)') ?>
                         </label>
                         <br class="clear"/>
                         <select id="<?php echo $code ?>_additional_fields_customer_dob_day" class="required-entry"
-                                style="width: 60px;" onchange="payoneRatepayCustomerDobInput('<?php echo $code ?>')">
+                                style="width: 60px;" onchange="payonePayolutionCustomerDobInput('<?php echo $code ?>')">
                             <option value="">--</option>
                             <?php for ($x = 1; $x <= 31; $x++): ?>
                                 <option value="<?php echo sprintf('%02d', $x); ?>">
@@ -79,7 +78,7 @@ $getPayolutionTyp = $this->payolutionTypeMapping();
                             <?php endfor; ?>
                         </select>
                         <select id="<?php echo $code ?>_additional_fields_customer_dob_month" class="required-entry"
-                                style="width: 60px;" onchange="payoneRatepayCustomerDobInput('<?php echo $code ?>')">
+                                style="width: 60px;" onchange="payonePayolutionCustomerDobInput('<?php echo $code ?>')">
                             <option value="">--</option>
                             <?php for ($x = 1; $x <= 12; $x++) : ?>
                                 <option value="<?php echo sprintf('%02d', $x); ?>">
@@ -88,7 +87,7 @@ $getPayolutionTyp = $this->payolutionTypeMapping();
                             <?php endfor; ?>
                         </select>
                         <select id="<?php echo $code ?>_additional_fields_customer_dob_year" class="required-entry"
-                                style="width: 60px;" onchange="payoneRatepayCustomerDobInput('<?php echo $code ?>')">
+                                style="width: 60px;" onchange="payonePayolutionCustomerDobInput('<?php echo $code ?>')">
                             <option value="">----</option>
                             <?php for ($x = date('Y'); $x > (date('Y') - 100); $x--) : ?>
                                 <option value="<?php echo $x; ?>">
@@ -126,8 +125,8 @@ $getPayolutionTyp = $this->payolutionTypeMapping();
                                    class="validate-sepa-iban required-entry input-text"
                                    value=""
                                    autocomplete="off" maxlength="34"
-                                   onchange="inputToUppaerCaseAndNumbers(this); copyDebitPaymentSepaIban('<?php echo $code ?>');"
-                                   oninput="inputToUppaerCaseAndNumbers(this); copyDebitPaymentSepaIban('<?php echo $code ?>');"/>
+                                   onchange="inputToUppaerCaseAndNumbers(this); payonePayolutionCopyDebitPaymentSepaIban('<?php echo $code ?>');"
+                                   oninput="inputToUppaerCaseAndNumbers(this); payonePayolutionCopyDebitPaymentSepaIban('<?php echo $code ?>');"/>
                             <input type="hidden" id="<?php echo $code ?>_sepa_iban" name="payment[payone_payolution_iban]"
                                    value="">
                         </div>

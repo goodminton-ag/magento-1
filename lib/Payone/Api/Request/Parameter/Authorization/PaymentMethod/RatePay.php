@@ -16,7 +16,7 @@
  * @package         Payone_Api
  * @subpackage      Request
  * @copyright       Copyright (c) 2015 <kontakt@fatchip.de> - www.fatchip.com
- * @author          Robert Müller <robert.mueller@fatchip.de>
+ * @author          Robert MÃ¼ller <robert.mueller@fatchip.de>
  * @license         <http://www.gnu.org/licenses/> GNU General Public License (GPL 3)
  * @link            http://www.fatchip.com
  */
@@ -29,7 +29,7 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_RatePay
      * Enum FinancingType
      * @var string
      */
-    protected $financingtype = NULL;
+    protected $financingtype = Payone_Api_Enum_RatepayType::RPS;
     /**
      * @var null
      */
@@ -51,7 +51,27 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_RatePay
     /**
      * @var string
      */
-    protected $ratePayType = NULL;
+    protected $ratePayType = Payone_Api_Enum_RatepayType::RPS;
+
+    /**
+     * @var string
+     */
+    protected $iban = NULL;
+
+    /**
+     * @var string
+     */
+    protected $bic = NULL;
+
+    /**
+     * @var string
+     */
+    protected $bankaccountholder = NULL;
+
+    /**
+     * @var string
+     */
+    protected $bankcountry = NULL;
 
 
     public function setApiVersion()
@@ -84,11 +104,12 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_RatePay
     }
     
     /**
-     * For now there is only "RPV" for Invoicing, but there will be more added.
+     * Original Ratepay is now turned into RPS only
+     * MAGE-444: RPV was implemented as separate method
      * 
      * @param string $financingtype
      */
-    public function setFinancingtype($financingtype = 'RPV')
+    public function setFinancingtype($financingtype = 'RPS')
     {
         $this->financingtype = $financingtype;
     }
@@ -149,5 +170,68 @@ class Payone_Api_Request_Parameter_Authorization_PaymentMethod_RatePay
     {
         return $this->telephonenumber;
     }
-    
+
+    /**
+     * @param string $iban
+     */
+    public function setIban($iban)
+    {
+        $this->iban = $iban;
+    }
+
+    /**
+     * @return string
+     */
+    public function getIban()
+    {
+        return $this->iban;
+    }
+
+    /**
+     * @param string $bic
+     */
+    public function setBic($bic)
+    {
+        $this->bic = $bic;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBic()
+    {
+        return $this->bic;
+    }
+
+    /**
+     * @param string $bankaccountholder
+     */
+    public function setBankaccountholder($bankaccountholder)
+    {
+        $this->bankaccountholder = $bankaccountholder;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBankaccountholder()
+    {
+        return $this->bankaccountholder;
+    }
+
+    /**
+     * @param string $bankcountry
+     */
+    public function setBankcountry($bankcountry)
+    {
+        $this->bankcountry = $bankcountry;
+    }
+
+    /**
+     * @return string
+     */
+    public function getBankcountry()
+    {
+        return $this->bankcountry;
+    }
 }

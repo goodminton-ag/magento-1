@@ -91,14 +91,18 @@ abstract class Payone_Api_Response_Abstract implements Payone_Api_Response_Inter
     {
         return $this->_toString($this->toArray());
     }
-    
+
     public function getRawResponseToString()
     {
         return $this->_toString($this->getRawResponse());
     }
-    
+
     protected function _toString($aValue)
     {
+        if (is_string($aValue)) {
+            return $aValue;
+        }
+
         if($this->applyFilters) {
             $result = $this->applyFilters->apply($aValue);
         } else {
@@ -107,7 +111,7 @@ abstract class Payone_Api_Response_Abstract implements Payone_Api_Response_Inter
             $result = $defaultApplyFilters->apply($aValue);
         }
 
-        return $result;        
+        return $result;
     }
 
 
@@ -117,6 +121,18 @@ abstract class Payone_Api_Response_Abstract implements Payone_Api_Response_Inter
     public function isApproved()
     {
         if ($this->getStatus() === Payone_Api_Enum_ResponseType::APPROVED) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isPending()
+    {
+        if ($this->getStatus() === Payone_Api_Enum_ResponseType::PENDING) {
             return true;
         }
 

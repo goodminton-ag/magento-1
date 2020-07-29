@@ -50,6 +50,11 @@ interface Payone_Core_Model_Config_Payment_Method_Interface
     /**
      * @return bool
      */
+    public function isAlternativePriceCalculationEnabled();
+
+    /**
+     * @return bool
+     */
     public function isBankAccountCheckEnabled();
 
     /**
@@ -189,6 +194,17 @@ interface Payone_Core_Model_Config_Payment_Method_Interface
      * @return string
      */
     public function getCheckCvc();
+
+   /**
+     * @param $hide_cvc
+     * @return mixed
+    */
+    public function setHideCvc($hide_cvc);
+
+    /**
+     * @return string
+*/
+    public function getHideCvc();
 
     /**
      * @param string $code
@@ -362,6 +378,16 @@ interface Payone_Core_Model_Config_Payment_Method_Interface
      * @return string
      */
     public function getRequestType();
+
+    /**
+     * @param string $request_type
+     */
+    public function setRequestTypeAmazon($request_type);
+
+    /**
+     * @return string
+     */
+    public function getRequestTypeAmazon();
 
     /**
      * @param string $scope

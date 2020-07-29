@@ -108,14 +108,28 @@ class Payone_Core_Model_Config_Payment_Method
     protected $request_type = '';
 
     /**
+     * @var string
+     */
+    protected $request_type_amazon = '';
+
+    /**
      * @var int
      */
     protected $invoice_transmit = 0;
 
     /**
+     * @var int
+     */
+    protected $alternative_price_calculation = 0;
+
+    /**
      * @var array
      */
     protected $types = array();
+    /**
+     * @var array
+     */
+    protected $hide_cvc = array();
     /**
      * @var array
      */
@@ -246,7 +260,63 @@ class Payone_Core_Model_Config_Payment_Method
      * @var string
      */
     protected $narrative_text = '';
-    
+
+    /**
+     * @var string
+     */
+    protected $amz_client_id = '';
+
+    /**
+     * @var string
+     */
+    protected $amz_seller_id = '';
+
+    /**
+     * @var int
+     */
+    protected $amz_button_type = 0;
+
+    /**
+     * @var int
+     */
+    protected $amz_button_color = 0;
+
+    /**
+     * @var int
+     */
+    protected $amz_button_lang = 0;
+
+    /**
+     * @var int
+     */
+    protected $amz_sync_mode = 0;
+
+    /**
+     * @var int
+     *
+     */
+    protected $wallet_paydirekt_enable_overcapture = 0;
+
+    /**
+     * @var string
+     */
+    protected $ratepay_debit_type = '';
+
+    /**
+     * @var string
+     */
+    protected $ratepay_directdebit_specificcountry = '';
+
+    /**
+     * @var int
+     */
+    protected $ratepay_directdebit_allowspecific = 0;
+
+    /**
+     * @var string
+     */
+    protected $associated_shipping_method = '';
+
     /**
      * Check if Method can be used in Country
      *
@@ -333,6 +403,18 @@ class Payone_Core_Model_Config_Payment_Method
     public function isInvoiceTransmitEnabled()
     {
         if ($this->getInvoiceTransmit()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @return bool
+     */
+    public function isAlternativePriceCalculationEnabled()
+    {
+        if ($this->getAlternativePriceCalculation()) {
             return true;
         }
 
@@ -500,6 +582,22 @@ class Payone_Core_Model_Config_Payment_Method
     public function getInvoiceTransmit()
     {
         return $this->invoice_transmit;
+    }
+
+    /**
+     * @param int $alternative_price_calculation
+     */
+    public function setAlternativePriceCalculation($alternative_price_calculation)
+    {
+        $this->alternative_price_calculation = $alternative_price_calculation;
+    }
+
+    /**
+     * @return int
+     */
+    public function getAlternativePriceCalculation()
+    {
+        return $this->alternative_price_calculation;
     }
 
     /**
@@ -675,7 +773,26 @@ class Payone_Core_Model_Config_Payment_Method
      */
     public function getRequestType()
     {
+        if ($this->getCode() === 'amazon_pay') {
+            return $this->getRequestTypeAmazon();
+        }
         return $this->request_type;
+    }
+
+    /**
+     * @param string $request_type_amazon
+     */
+    public function setRequestTypeAmazon($request_type_amazon)
+    {
+        $this->request_type_amazon = $request_type_amazon;
+    }
+
+    /**
+     * @return string
+     */
+    public function getRequestTypeAmazon()
+    {
+        return $this->request_type_amazon;
     }
 
     /**
@@ -773,6 +890,25 @@ class Payone_Core_Model_Config_Payment_Method
     {
         return $this->types;
     }
+
+    /**
+     * @param $hide_cvc
+*/
+    public function setHideCvc($hide_cvc)
+    {
+        $this->hide_cvc = $hide_cvc;
+    }
+
+    /**
+     * @return array
+*/
+    public function getHideCvc()
+    {
+        return $this->hide_cvc;
+    }
+
+
+
 
     /**
      * @param int $use_global
@@ -1189,5 +1325,180 @@ class Payone_Core_Model_Config_Payment_Method
     {
         return $this->narrative_text;
     }
-    
+
+    /**
+     * @param string $sAmzClientId
+     */
+    public function setAmzClientId($sAmzClientId)
+    {
+        $this->amz_client_id = $sAmzClientId;
+    }
+
+    /**
+     * @return string
+     */
+    public function getAmzClientId()
+    {
+        return $this->amz_client_id;
+    }
+
+    /**
+     * @param string $sAmzSellerId
+     */
+    public function setAmzSellerId($sAmzSellerId)
+    {
+        $this->amz_seller_id = $sAmzSellerId;
+    }
+
+    /**
+     * @return string
+     */
+    public function getAmzSellerId()
+    {
+        return $this->amz_seller_id;
+    }
+
+    /**
+     * @param int $amz_button_type
+     */
+    public function setAmzButtonType($amz_button_type)
+    {
+        $this->amz_button_type = $amz_button_type;
+    }
+
+    /**
+     * @return int
+     */
+    public function getAmzButtonType()
+    {
+        return $this->amz_button_type;
+    }
+
+    /**
+     * @param int $amz_button_color
+     */
+    public function setAmzButtonColor($amz_button_color)
+    {
+        $this->amz_button_color = $amz_button_color;
+    }
+
+    /**
+     * @return int
+     */
+    public function getAmzButtonColor()
+    {
+        return $this->amz_button_color;
+    }
+
+    /**
+     * @param int $amz_button_lang
+     */
+    public function setAmzButtonLang($amz_button_lang)
+    {
+        $this->amz_button_lang = $amz_button_lang;
+    }
+
+    /**
+     * @return int
+     */
+    public function getAmzButtonLang()
+    {
+        return $this->amz_button_lang;
+    }
+
+    /**
+     * @param int $amz_sync_mode
+     */
+    public function setAmzSyncMode($amz_sync_mode)
+    {
+        $this->amz_sync_mode = $amz_sync_mode;
+    }
+
+    /**
+     * @return int
+     */
+    public function getAmzSyncMode()
+    {
+        return $this->amz_sync_mode;
+    }
+
+    /**
+     * @param int $wallet_paydirekt_enable_overcapture
+     */
+    public function setWalletPaydirektEnableOvercapture($wallet_paydirekt_enable_overcapture)
+    {
+        $this->wallet_paydirekt_enable_overcapture = $wallet_paydirekt_enable_overcapture;
+    }
+
+    /**
+     * @return int
+     */
+    public function getWalletPaydirektEnableOvercapture()
+    {
+        return $this->wallet_paydirekt_enable_overcapture;
+    }
+
+    /**
+     * @param string $ratepay_debit_type
+     */
+    public function setRatepayDebitType($ratepay_debit_type)
+    {
+        $this->ratepay_debit_type = $ratepay_debit_type;
+    }
+
+    /**
+     * @return string
+     */
+    public function getRatepayDebitType()
+    {
+        return $this->ratepay_debit_type;
+    }
+
+    /**
+     * @param string $ratepay_directdebit_specificcountry
+     */
+    public function setRatepayDirectdebitSpecificcountry($ratepay_directdebit_specificcountry)
+    {
+        $this->ratepay_directdebit_specificcountry = $ratepay_directdebit_specificcountry;
+    }
+
+    /**
+     * @return string
+     */
+    public function getRatepayDirectdebitSpecificcountry()
+    {
+        return $this->ratepay_directdebit_specificcountry;
+    }
+
+    /**
+     * @param int $ratepay_directdebit_allowspecific
+     */
+    public function setRatepayDirectdebitAllowspecific($ratepay_directdebit_allowspecific)
+    {
+        $this->ratepay_directdebit_allowspecific = $ratepay_directdebit_allowspecific;
+    }
+
+    /**
+     * @return int
+     */
+    public function getRatepayDirectdebitAllowspecific()
+    {
+        return $this->ratepay_directdebit_allowspecific;
+    }
+
+    /**
+     * @return string
+     */
+    public function getAssociatedShippingMethod()
+    {
+        return $this->associated_shipping_method;
+    }
+
+    /**
+     * @param string $associated_shipping_method
+     */
+    public function setAssociatedShippingMethod($associated_shipping_method)
+    {
+        $this->associated_shipping_method = $associated_shipping_method;
+    }
 }

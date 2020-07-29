@@ -43,6 +43,16 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
     protected $serviceProcess = null;
 
     /**
+     * @var Payone_Core_Model_Domain_Protocol_TransactionStatus[] Transaction status objects which were processed this cron.
+     */
+    private $processed = array();
+
+    /**
+     * @var Payone_Core_Model_Domain_Protocol_TransactionStatus[] Transaction status objects of which processing has failed.
+     */
+    private $failed = array();
+
+    /**
      * @return int
      */
     public function executePending()
@@ -55,8 +65,9 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
         $countExecuted = 0;
         $maxExecutionTime = $this->getMaxExecutionTime() ? $this->getMaxExecutionTime() : self::MAX_EXECUTION_TIME;
         while (((time() - $startTime) < $maxExecutionTime) && ($continue)) {
-            // Get next pending TransactionStatus
-            $transactionStatus = $collection->getNextPending();
+            // Get next pending TransactionStatus and provide a list of
+            // all transaction status that were processed this cron.
+            $transactionStatus = $collection->getNextPending($this->getProcessedIds());
 
             // Execute
             if ($transactionStatus) {
@@ -68,7 +79,85 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
             }
         }
 
+        if ($this->isProcessReportingActive()) {
+            // TODO: Move handling of failed transaction status to a separate cron.
+            $this->handleFailed();
+        }
+
+        Mage::helper('payone_core')->logCronjobMessage("executePending: finished ".$countExecuted);
         return $countExecuted;
+    }
+
+    /**
+     * @return bool True if the reporting is enabled.
+     */
+    protected function isProcessReportingActive()
+    {
+        return (bool) Mage::helper('payone_core')->getTransactionProcessingReportingActive();
+    }
+
+    /**
+     * @return int The max amount of allowed processing retries.
+     */
+    protected function getProcessMaxRetryCount()
+    {
+        return Mage::helper('payone_core')->getTransactionProcessingMaxRetryCount();
+    }
+
+    /**
+     * @return string The report email which receives processing reports.
+     */
+    protected function getProcessReportEmail()
+    {
+        return Mage::helper('payone_core')->getTransactionProcessingReportEmail();
+    }
+
+    /**
+     * @return int[] The IDs of all processed transaction status.
+     */
+    protected function getProcessedIds()
+    {
+        return array_map(function ($processed) {
+            return (int) $processed->getId();
+        }, $this->processed);
+    }
+
+    /**
+     * @return int[] The IDs of all failed transaction status.
+     */
+    protected function getFailedIds()
+    {
+        return array_map(function ($failed) {
+            return (int) $failed->getId();
+        }, $this->failed);
+    }
+
+    /**
+     * @return int[] The TxIDs of all failed transaction status.
+     */
+    protected function getFailedTxIds()
+    {
+        return array_map(function ($failed) {
+            /** @var Payone_Core_Model_Domain_Protocol_TransactionStatus $failed */
+            return (int) $failed->getTxid();
+        }, $this->failed);
+    }
+
+    protected function _getIncrementId($sReference)
+    {
+        $oResource = Mage::getSingleton('core/resource');
+        $oRead = $oResource->getConnection('core_read');
+
+        $select = $oRead->select()
+            ->from(array('tbl' => $oResource->getTableName('sales/order')), array('increment_id'))
+            ->where('payone_cancel_substitute_increment_id = ?', $sReference)
+            ->order('entity_id desc')
+            ->limit(1);
+        $sSubstitudeIncrementId = $oRead->fetchOne($select);
+        if (!empty($sSubstitudeIncrementId)) {
+            return $sSubstitudeIncrementId;
+        }
+        return $sReference;
     }
 
     /**
@@ -77,6 +166,26 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
     public function execute(Payone_Core_Model_Domain_Protocol_TransactionStatus $transactionStatus)
     {
         $storeId = $transactionStatus->getStoreId();
+
+        /**
+         * Check if the Store ID exists, if not fetch the order from the reference
+         */
+        if (is_null($storeId)) {
+            $sIncrementId = $this->_getIncrementId($transactionStatus->getReference());
+
+            $order = $this->getFactory()->getModelSalesOrder();
+            $order->loadByIncrementId($sIncrementId);
+
+            if ($sIncrementId != $transactionStatus->getReference()) {
+                $transactionStatus->setReference($sIncrementId);
+            }
+
+            if ($order && $order->getId()) {
+                $storeId = $order->getStoreId();
+            }
+        }
+
+        $this->helper()->logCronjobMessage("ID: {$transactionStatus->getId()} - Execute - Execute TransactionStatus action: {$transactionStatus->getTxaction()} - store-id: {$storeId}", $storeId);
 
         $storeBefore = $this->getApp()->getStore();
         $areaBefore = $this->getDesign()->getArea();
@@ -89,17 +198,32 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
         $this->getApp()->loadAreaPart(Mage_Core_Model_App_Area::AREA_FRONTEND, Mage_Core_Model_App_Area::PART_TRANSLATE);
         $this->getApp()->loadAreaPart(Mage_Core_Model_App_Area::AREA_FRONTEND, Mage_Core_Model_App_Area::PART_DESIGN);
 
+        // Track current transaction status as processed (no matter what happens next).
+        $this->processed[] = $transactionStatus;
+
         $transactionStatus->setStatusRunning();
         $transactionStatus->save();
-
+        $this->helper()->logCronjobMessage("ID: {$transactionStatus->getId()} - Execute - Set status to running", $storeId);
         try {
             $this->getServiceProcess()->execute($transactionStatus);
             $transactionStatus->setStatusOk();
+            $this->helper()->logCronjobMessage("ID: {$transactionStatus->getId()} - Execute - Finished service execution, set status to complete", $storeId);
         } catch (Exception $e) {
-            $transactionStatus->setStatusError();
-            $transactionStatus->setProcessingError($e->getMessage());
-        }
+            $processRetryCount = (int) $transactionStatus->getProcessRetryCount();
 
+            if ($processRetryCount >= $this->getProcessMaxRetryCount()) {
+                $transactionStatus->setStatusError();
+                $transactionStatus->setProcessingError($e->getMessage());
+                $transactionStatus->setProcessingErrorStacktrace($e->getTraceAsString());
+                $this->failed[] = $transactionStatus;
+                $this->helper()->logCronjobMessage("ID: {$transactionStatus->getId()} - Execute - Error during service execution, set status to error with message {$e->getMessage()}", $storeId);
+            }
+            else {
+                $transactionStatus->setStatusPending();
+                $transactionStatus->setProcessRetryCount($processRetryCount + 1);
+                $this->helper()->logCronjobMessage("ID: {$transactionStatus->getId()} - Execute - Failed service execution with error '{$e->getMessage()}', retry execution next run", $storeId);
+            }
+        }
         $transactionStatus->setProcessedAt(date('Y-m-d H:i:s'));
         $transactionStatus->save();
 
@@ -109,6 +233,7 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
         // Reset Area to old Area
         $this->getDesign()->setArea($areaBefore);
         $this->getApp()->loadArea($areaBefore);
+        $this->helper()->logCronjobMessage("ID: {$transactionStatus->getId()} - Execute - Finished", $storeId);
     }
 
     /**
@@ -158,5 +283,31 @@ class Payone_Core_Model_Service_TransactionStatus_Execute extends Payone_Core_Mo
     public function getMaxExecutionTime()
     {
         return $this->maxExecutionTime;
+    }
+
+    /**
+     * Handles all transaction status that were failed this cron job run
+     * and sends a reporting email to the configured recipient.
+     */
+    private function handleFailed()
+    {
+        $failedIds = $this->getFailedIds();
+        $failedTxIds = $this->getFailedTxIds();
+
+        if (!empty($failedIds)) {
+            $failedIds = join(', ', $failedIds);
+            $failedTxIds = join(', ', $failedTxIds);
+
+            $this->getFactory()->helperEmail()->send(
+                'general',
+                $this->getProcessReportEmail(),
+                false,
+                'payone_transaction_status_error_report',
+                array(
+                    'failedIds' => $failedIds,
+                    'failedTxIds' => $failedTxIds,
+                )
+            );
+        }
     }
 }

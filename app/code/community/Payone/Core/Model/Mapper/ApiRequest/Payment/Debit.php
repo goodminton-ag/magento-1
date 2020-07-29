@@ -38,6 +38,9 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
     /** @var Mage_Sales_Model_Order_Creditmemo */
     protected $creditmemo = null;
 
+    /** @var Payone_Api_Request_Parameter_Invoicing_Transaction */
+    protected $invoicing;
+
     /**
      * @return Payone_Api_Request_Debit
      */
@@ -63,14 +66,40 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
         $business = $this->mapBusinessParameters();
         $request->setBusiness($business);
 
-        /** Set Invoiceing-Parameter only if enabled in Config */
+        /** MAGE-410 add invoiceId if available, no matter which configuration state is set */
+        $creditmemo = $this->getCreditmemo();
+        if (!empty($creditmemo) && $creditmemo->hasData()) {
+            $creditmemoIncrementId = $creditmemo->getIncrementId();
+            if ($creditmemoIncrementId === null) {
+                $creditmemoIncrementId = $this->fetchNewIncrementId($creditmemo);
+            }
+            $this->getInvoicing()->setInvoiceid($creditmemoIncrementId);
+        }
+
+        /** Set Invoicing-Parameter only if enabled in Config */
         if ($this->mustTransmitInvoiceData()) {
-            $invoicing = $this->mapInvoicingParameters();
-            $request->setInvoicing($invoicing);
+            $this->mapInvoicingParameters();
+
+            if ($this->mustAdaptCalculation()) {
+                /** @var Payone_Api_Request_Parameter_Invoicing_Item $item */
+                foreach ($this->getInvoicing()->getItems() as $item) {
+                    $item->setPr($item->getNo() * $item->getPr());
+                    $item->setDe('Menge: ' . $item->getNo() . ' ' . $item->getDe());
+                    $item->setNo(1);
+                }
+            }
+        }
+
+        if (!empty($this->invoicing)) {
+            $request->setInvoicing($this->invoicing);
         }
 
         $paymentMethod = $this->getPaymentMethod();
-        if ($paymentMethod instanceof Payone_Core_Model_Payment_Method_Ratepay) {
+        if (
+            $paymentMethod instanceof Payone_Core_Model_Payment_Method_Ratepay ||
+            $paymentMethod instanceof Payone_Core_Model_Payment_Method_RatepayInvoicing ||
+            $paymentMethod instanceof Payone_Core_Model_Payment_Method_RatepayDirectDebit
+        ) {
             $payData = new Payone_Api_Request_Parameter_Paydata_Paydata();
             $payData->addItem(
                 new Payone_Api_Request_Parameter_Paydata_DataItem(
@@ -98,6 +127,7 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
         
         $this->dispatchEvent($this->getEventName(), array('request' => $request, 'creditmemo' => $this->getCreditmemo()));
         $this->dispatchEvent($this->getEventPrefix() . '_all', array('request' => $request));
+
         return $request;
     }
 
@@ -117,6 +147,24 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
         $request->setAmount($this->getAmount() * -1);
         $request->setRequest(Payone_Api_Enum_RequestType::DEBIT);
         $request->setUseCustomerdata('yes');
+
+        $narrativeText = $this->getNarrativeText();
+        $request->setNarrativeText($narrativeText);
+
+        // MAGE-391 Fix MAGE-383
+        if ($this->configPayment->getCurrencyConvert() && $order->getOrderCurrencyCode() != $order->getBaseCurrencyCode()) {
+            $orderCurrency = $order->getOrderCurrency();
+            $baseCurrency = $order->getBaseCurrency();
+
+            if ($orderCurrency->getRate($baseCurrency) === false) {
+                $amount = $request->getAmount() / $baseCurrency->getRate($orderCurrency);
+            } else {
+                $amount = $orderCurrency->convert($request->getAmount(), $baseCurrency);
+            }
+
+            $request->setCurrency($order->getBaseCurrencyCode());
+            $request->setAmount($amount);
+        }
     }
 
     /**
@@ -145,25 +193,14 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
         return $business;
     }
 
-    /**
-     * @return Payone_Api_Request_Parameter_Invoicing_Transaction
-     */
     protected function mapInvoicingParameters()
     {
         $order = $this->getOrder();
         $creditmemo = $this->getCreditmemo();
 
-        $invoicing = new Payone_Api_Request_Parameter_Invoicing_Transaction();
         if (!empty($creditmemo) && $creditmemo->hasData()) {
-            $creditmemoIncrementId = $creditmemo->getIncrementId();
-            if ($creditmemoIncrementId === null) {
-                $creditmemoIncrementId = $this->fetchNewIncrementId($creditmemo);
-            }
-
             $appendix = $this->getInvoiceAppendixRefund($creditmemo);
-
-            $invoicing->setInvoiceid($creditmemoIncrementId);
-            $invoicing->setInvoiceappendix($appendix);
+            $this->getInvoicing()->setInvoiceappendix($appendix);
 
             // Regular order items:
             foreach ($creditmemo->getItemsCollection() as $itemData) {
@@ -180,12 +217,11 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
                     continue; // Do not map items with zero quantity
                 }
 
+                $params['it'] = Payone_Api_Enum_InvoicingItemType::GOODS;
                 $params['id'] = $itemData->getSku();
                 $params['de'] = $itemData->getName();
                 $params['no'] = $number;
-                $params['pr'] = $itemData->getPriceInclTax();
-                $params['it'] = Payone_Api_Enum_InvoicingItemType::GOODS;
-
+                $params['pr'] = $this->getItemPrice($itemData);
 
                 // We have to load the tax percentage from the order item
 //                $params['va'] = number_format($orderItem->getTaxPercent(), 0, '.', '');
@@ -193,32 +229,36 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
 
                 $item = new Payone_Api_Request_Parameter_Invoicing_Item();
                 $item->init($params);
-                $invoicing->addItem($item);
+                $this->getInvoicing()->addItem($item);
             }
 
             // Refund shipping
             if ($creditmemo->getShippingInclTax() > 0) {
-                $invoicing->addItem($this->mapRefundShippingAsItemByCreditmemo($creditmemo));
+                // MAGE-451: skip if refund without basket (good will refund)
+                if (!$this->isGoodwillRefund($creditmemo)) {
+                    $this->getInvoicing()->addItem($this->mapRefundShippingAsItemByCreditmemo($creditmemo));
+                }
             }
 
             // Adjustment Refund (positive adjustment)
             if ($creditmemo->getAdjustmentPositive() > 0) {
-                $invoicing->addItem($this->mapAdjustmentPositiveAsItemByCreditmemo($creditmemo));
+                // MAGE-451: skip if refund without basket (good will refund)
+                if (!$this->isGoodwillRefund($creditmemo)) {
+                    $this->getInvoicing()->addItem($this->mapAdjustmentPositiveAsItemByCreditmemo($creditmemo));
+                }
             }
 
             // Adjustment Fee (negative adjustment)
             if ($creditmemo->getAdjustmentNegative() > 0) {
-                $invoicing->addItem($this->mapAdjustmentNegativeAsItemByCreditmemo($creditmemo));
+                $this->getInvoicing()->addItem($this->mapAdjustmentNegativeAsItemByCreditmemo($creditmemo));
             }
 
             // Add Discount as a position
-            $discountAmount = $creditmemo->getDiscountAmount();
+            $discountAmount = $this->getCreditmemoDiscountAmount($creditmemo);
             if ($discountAmount) {
-                $invoicing->addItem($this->mapDiscountAsItem($discountAmount));
+                $this->getInvoicing()->addItem($this->mapDiscountAsItem($discountAmount));
             }
         }
-
-        return $invoicing;
     }
 
     /**
@@ -251,5 +291,52 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Debit
     public function getEventType()
     {
         return self::EVENT_TYPE;
+    }
+
+    /**
+     * @param Mage_Sales_Model_Order_Creditmemo_Item $itemData
+     * @return float
+     */
+    private function getItemPrice(Mage_Sales_Model_Order_Creditmemo_Item $itemData)
+    {
+        if($this->configPayment->getCurrencyConvert()) {
+            return $itemData->getBasePriceInclTax();
+        }
+
+        return $itemData->getPriceInclTax();
+    }
+
+    /**
+     * @param Mage_Sales_Model_Order_Creditmemo $creditmemo
+     * @return float
+     */
+    private function getCreditmemoDiscountAmount(Mage_Sales_Model_Order_Creditmemo $creditmemo)
+    {
+        if($this->configPayment->getCurrencyConvert()) {
+            return $creditmemo->getBaseDiscountAmount();
+        }
+
+        return $creditmemo->getDiscountAmount();
+    }
+
+    /**
+     * @return Payone_Api_Request_Parameter_Invoicing_Transaction
+     */
+    private function getInvoicing()
+    {
+        if (empty($this->invoicing)) {
+            $this->invoicing = new Payone_Api_Request_Parameter_Invoicing_Transaction();
+        }
+
+        return $this->invoicing;
+    }
+
+    /**
+     * @param Mage_Sales_Model_Order_Creditmemo $creditmemo
+     * @return bool
+     */
+    protected function isGoodwillRefund(Mage_Sales_Model_Order_Creditmemo $creditmemo)
+    {
+        return $creditmemo->getTotalQty() == 0;
     }
 }

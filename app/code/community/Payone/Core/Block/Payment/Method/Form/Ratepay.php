@@ -16,7 +16,7 @@
  * @package         Payone_Core_Block
  * @subpackage      Payment
  * @copyright       Copyright (c) 2015 <kontakt@fatchip.de> - www.fatchip.com
- * @author          Robert Müller <robert.mueller@fatchip.de>
+ * @author          Robert MÃ¼ller <robert.mueller@fatchip.de>
  * @license         <http://www.gnu.org/licenses/> GNU General Public License (GPL 3)
  * @link            http://www.fatchip.com
  */
@@ -32,7 +32,6 @@ class Payone_Core_Block_Payment_Method_Form_Ratepay extends Payone_Core_Block_Pa
      */
     protected $hasTypes = true;
 
-
     protected function _construct() 
     {
         parent::_construct();
@@ -46,8 +45,9 @@ class Payone_Core_Block_Payment_Method_Form_Ratepay extends Payone_Core_Block_Pa
     {
         // required for all countries
         // required only if customer didn't enter Dob in previous checkout step
+        // and if process is not B2B
         $customerDob = $this->getQuote()->getCustomerDob();
-        if (empty($customerDob)) {
+        if (empty($customerDob) && !$this->isB2BMode()) {
             return true;
         }
 
@@ -170,5 +170,123 @@ class Payone_Core_Block_Payment_Method_Form_Ratepay extends Payone_Core_Block_Pa
             return 0;
         }
     }
-    
+
+    /**
+     * Checks if the quote was created as B2B
+     * B2B = Company name is provided in the billing address
+     *
+     * @return bool
+     */
+    public function isB2BMode()
+    {
+        $sCompany = $this->getQuote()->getBillingAddress()->getCompany();
+
+        return !empty($sCompany);
+    }
+
+    /**
+     * @return string
+     */
+    public function getCountry()
+    {
+        return $this->getQuote()->getBillingAddress()->getCountry();
+    }
+
+    /**
+     * @return string
+     */
+    public function getAllowedSEPACountries()
+    {
+        $sepaCountries = Mage::getModel('payone_core/system_config_sepaCountry');
+        $array = $sepaCountries->toArray();
+
+        return json_encode(array_keys($array));
+    }
+
+    /**
+     * Returns the string containing the configured countries
+     * allowed for ratepay installment direct debit
+     * Returns 'all' if all countries are allowed
+     *
+     * @return string
+     */
+    public function getConfigDebitCountries()
+    {
+        /** @var Payone_Core_Model_Payment_Method_Ratepay $method */
+        $method = Mage::getModel('payone_core/payment_method_ratepay');
+        /** @var Payone_Core_Model_Config_Payment_Method $config */
+        $config = $method->getConfigForQuote($this->getQuote());
+
+        if ($config->getAllowspecific() == "0") {
+            return 'all';
+        }
+
+        $ratepayDirectDebitAllowSpecific = $config->getRatepayDirectDebitSpecificCountry();
+
+        return $ratepayDirectDebitAllowSpecific;
+    }
+
+    /**
+     * @return string
+     */
+    public function getAccountOwner()
+    {
+        $billingContact = $this->getQuote()->getBillingAddress();
+        if($this->isB2BMode()) {
+            return $billingContact->getCompany();
+        }
+
+        return $billingContact->getFirstname() . ' ' . $billingContact->getLastname();
+    }
+
+    /**
+     * return string
+     */
+    public function getRatepayDirectDebitAcceptanceText()
+    {
+        /** @var Payone_Core_Block_Payment_Method_RatepayDirectDebitSepaAcceptance $block */
+        $block = Mage::app()->getLayout()->createBlock('payone_core/payment_method_ratepayDirectDebitSepaAcceptance');
+
+        return $block->toHtml();
+    }
+
+    /**
+     * @return bool
+     */
+    public function isAllowedDirectDebit()
+    {
+        $country = $this->getQuote()->getBillingAddress()->getCountry();
+        // Switzerland does not allow RPS Lastschrift, no need for fields
+        if ($country == 'CH') {
+            return false;
+        }
+
+        $config = $this->getPaymentConfig();
+        if ($config->getRatepayDirectdebitAllowspecific() == '0') {
+            return true;
+        }
+
+        $allowedCountries = explode(',', $config->getRatepayDirectDebitSpecificCountry());
+        if (in_array($country, $allowedCountries)) {
+            return true;
+        };
+
+        return false;
+    }
+
+    /**
+     * @return Payone_Core_Model_Config_Payment_Method_Interface[]
+     */
+    public function getPaymentConfigs()
+    {
+        $configs = parent::getPaymentConfigs();
+
+        foreach ($configs as $config) {
+            if ($config->getCode() == Payone_Core_Model_System_Config_PaymentMethodType::RATEPAY) {
+                $config->setTypes(array(Payone_Api_Enum_RatepayType::RPS));
+            }
+        }
+
+        return $configs;
+    }
 }

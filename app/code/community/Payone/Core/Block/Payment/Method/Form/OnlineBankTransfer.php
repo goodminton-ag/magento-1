@@ -33,7 +33,22 @@
 class Payone_Core_Block_Payment_Method_Form_OnlineBankTransfer
     extends Payone_Core_Block_Payment_Method_Form_Abstract
 {
+    /**
+     * @var bool
+     */
     protected $hasTypes = true;
+    /**
+     * @var null
+     */
+    protected $config = null;
+    /**
+     * @var string
+     */
+    protected $formattedFeePrice = '';
+    /**
+     * @var bool
+     */
+    protected $isCvc = null;
 
     protected function _construct()
     {
@@ -62,24 +77,60 @@ class Payone_Core_Block_Payment_Method_Form_OnlineBankTransfer
     }
 
     /**
+     * @return string
+     */
+    public function getFormattedFeeConfigForOnlineBankTransfer()
+    {
+        $this->config = $this->getPaymentConfig();
+        if ($this->config) {
+            $quote = $this->getQuote();
+            $feeConfig = $this->config->getFeeConfigForQuote($quote);
+            if (is_array($feeConfig) &&
+                array_key_exists('fee_config', $feeConfig) &&
+                !empty($feeConfig['fee_config'])
+            ) {
+                $this->formattedFeePrice = $this->getFormattedFeePriceLabel($this->_calcFeePrice());
+            }
+        }
+        return $this->formattedFeePrice;
+    }
+
+    /**
+     * @return string
+     */
+    public function getCvcConfig()
+    {
+        $this->config = $this->getPaymentConfig();
+
+        if ($this->config) {
+            $this->isCvc = $this->config->getCheckCvc();
+        }
+
+        return $this->isCvc;
+    }
+
+    /**
+     * @return array
+     */
+    public function onlineBankTransferTypeMapping()
+    {
+        return $onlineBankTransferPayment = [
+            Payone_Core_Model_System_Config_PaymentMethodCode::ONLINEBANKTRANSFERSOFORT => Payone_Api_Enum_OnlinebanktransferType::INSTANT_MONEY_TRANSFER,
+            Payone_Core_Model_System_Config_PaymentMethodCode::ONLINEBANKTRANSFERGIROPAY => Payone_Api_Enum_OnlinebanktransferType::GIROPAY,
+            Payone_Core_Model_System_Config_PaymentMethodCode::ONLINEBANKTRANSFERPFF => Payone_Api_Enum_OnlinebanktransferType::POSTFINANCE_EFINANCE,
+            Payone_Core_Model_System_Config_PaymentMethodCode::ONLINEBANKTRANSFERPFC => Payone_Api_Enum_OnlinebanktransferType::POSTFINANCE_CARD,
+            Payone_Core_Model_System_Config_PaymentMethodCode::ONLINEBANKTRANSFERP24 => Payone_Api_Enum_OnlinebanktransferType::P24,
+            Payone_Core_Model_System_Config_PaymentMethodCode::ONLINEBANKTRANSFERBCT => Payone_Api_Enum_OnlinebanktransferType::BANCONTACT,
+        ];
+    }
+
+    /**
      * @return array
      */
     protected function getSystemConfigMethodTypes()
     {
         return $this->getFactory()->getModelSystemConfigOnlinebanktransferType()->toSelectArray();
     }
-
-    public function getBlockHtmlBankGroup()
-    {
-        /** @var $block Mage_Core_Block_Template */
-        $block = $this->getLayout()->createBlock('core/template');
-        $block->setTemplate('payone/core/payment/method/form/onlinebanktransfer/bankgroup.phtml');
-        $block->setMethodCode($this->getMethodCode());
-        $block->setSavedCustomerBankGroup($this->getSavedCustomerData('payone_bank_group'));
-        $html = $block->toHtml();
-        return $html;
-    }
-
 
     /**
      * Retrieve the payment config method id from Quote.
@@ -99,15 +150,14 @@ class Payone_Core_Block_Payment_Method_Form_OnlineBankTransfer
 
         if ($preselectPossible) {
             return $preselectedConfigId;
-        }
-        else {
+        } else {
             return 0;
         }
     }
     
     /**
-     * Return if iban+bic have to be shown for Sofort‹berweisung
-     * 
+     * Return if iban+bic have to be shown for Sofort√úberweisung
+     *
      * @return bool
      */
     public function showSofortUeberweisungBankDataFields()

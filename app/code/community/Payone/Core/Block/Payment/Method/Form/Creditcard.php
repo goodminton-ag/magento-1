@@ -45,22 +45,6 @@ class Payone_Core_Block_Payment_Method_Form_Creditcard
     }
 
     /**
-     * Name from billing address in the format "Firstname Lastname".
-     * @return string
-     */
-    public function getBillingName()
-    {
-        $billingName = $this->getSavedCustomerData('cc_owner');
-        if(empty($billingName)) {
-            $quote = $this->getQuote();
-            $address = $quote->getBillingAddress();
-            $billingName = $address->getFirstname() . ' ' . $address->getLastname();
-        }
-
-        return $billingName;
-    }
-
-    /**
      * @return Mage_Payment_Model_Config
      */
     protected function getMagentoPaymentConfig()
@@ -79,11 +63,32 @@ class Payone_Core_Block_Payment_Method_Form_Creditcard
     }
 
     /**
-     * @return array
-     */
+ * @return array
+ */
     protected function getSystemConfigMethodTypes()
     {
         return $this->getFactory()->getModelSystemConfigCreditCardType()->toSelectArray();
+    }
+
+    /**
+     * @return array
+     */
+    protected function getSystemConfigHideCvc()
+    {
+        return $this->getFactory()->getModelSystemConfigHideCvc()->toSelectArray();
+    }
+
+    /**
+     * @return null|string
+     */
+    public function getHideCvcTypes()
+    {
+        $hideTypes = $this->getPaymentConfig()->getHideCvc();
+        if(!empty($hideTypes)){
+            return Mage::helper('core')->jsonEncode(($hideTypes));
+        }
+
+        return '[]';
     }
 
     /**
@@ -459,4 +464,64 @@ class Payone_Core_Block_Payment_Method_Form_Creditcard
         return $gateways;
     }
     
+    public function getCreditCardRecognitionConfig ()
+    {
+        return $this->getConfigGeneral()->getPaymentCreditcard()->getCcTypeAutoRecognition();
+    }
+
+    public function getRawCcType()
+    {
+        $ccTypes = array();
+        foreach (array_keys($this->getTypes()) as $configCcType) {
+            $typeDetails = explode('_', $configCcType);
+            if(isset($typeDetails[1])) {
+                array_push($ccTypes, $typeDetails[1]);
+            }
+        }
+
+        return $ccTypes;
+    }
+
+    /**
+     * @return bool
+     */
+    public function getHideCreditCardSelectorConfig()
+    {
+        $hideCcTypeSelector =  $this->getConfigGeneral()->getPaymentCreditcard()->getCcTypeHideSelector();
+        if(!empty($hideCcTypeSelector)){
+            return (bool) $hideCcTypeSelector;
+        }
+
+        return false;
+    }
+
+    /**
+     * return array
+     */
+    public function getCvcLength()
+    {
+        $config = new Payone_Settings_Configuration_PaymentMethod_CreditCard();
+        $cvcLength = $config->getCvcLength();
+
+        if ($cvcLength == null) {
+            return array();
+        }
+
+        // filter with hidden card types
+        $hidden = json_decode($this->getHideCvcTypes(), true);
+
+        if (!is_array($hidden)) {
+            return $cvcLength;
+        }
+
+        $cvcLength = array_filter(
+            $cvcLength,
+            function ($item) use ($hidden) {
+                return !in_array($item, $hidden);
+            },
+            ARRAY_FILTER_USE_KEY
+        );
+
+        return $cvcLength;
+    }
 }

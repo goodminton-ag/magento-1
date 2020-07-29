@@ -57,26 +57,93 @@ class Payone_Core_Block_Checkout_Onepage_Payment_Methods
 
         $allowedMethods = $this->getAllowedMethods();
 
-        // All Methods are allowed
-        if ($allowedMethods === true) {
-            return $this->methods;
+        // List of allowed methods has to be rewritten
+        if ($allowedMethods !== true) {
+            $result = array();
+            foreach ($this->methods as $method) {
+                /**
+                 * @var $method Mage_Payment_Model_Method_Abstract
+                 */
+                $methodAvailable = $allowedMethods->getData($method->getCode());
+                if ($methodAvailable == 1) {
+                    $result[] = $method;
+                }
+            }
+
+            // Overwrite Methods with the above created result array
+            $this->methods = $result;
         }
 
-        $result = array();
-        foreach ($this->methods as $method) {
-            /**
-             * @var $method Mage_Payment_Model_Method_Abstract
-             */
-            $methodAvailable = $allowedMethods->getData($method->getCode());
-            if ($methodAvailable == 1) {
-                $result[] = $method;
+        $aRestrictedMethods = $this->getRestrictedMethods();
+        $aRestrictedMethods = array_merge($aRestrictedMethods, $this->getRatepayRestrictedMethods());
+        $aRestrictedMethods[] = Payone_Core_Model_System_Config_PaymentMethodCode::WALLETPAYDIREKTEXPRESS;
+        if (!empty($aRestrictedMethods)) {
+            $this->methods = array_filter(
+                $this->methods,
+                function (Mage_Payment_Model_Method_Abstract $oMethod) use ($aRestrictedMethods)
+                {
+                    return !in_array($oMethod->getCode(), $aRestrictedMethods);
+                }
+            );
+        }
+
+        return $this->methods;
+    }
+
+    /**
+     * @return array
+     */
+    public function getRestrictedMethods()
+    {
+        $aRestrictedMethods = array();
+
+        /** @var Payone_Core_Model_Domain_PaymentBan $paymentBanModel */
+        $paymentBanModel = Mage::getModel('payone_core/domain_paymentBan');
+        $paymentBans = $paymentBanModel->loadByCustomerId($this->getQuote()->getCustomerId());
+        foreach ($paymentBans as $paymentBan) {
+            $dtToday = new DateTime();
+            $dtBanStartDate = new DateTime($paymentBan->getFromDate());
+            $dtBanEndDate = new DateTime($paymentBan->getToDate());
+
+            if (
+                $dtToday->getTimestamp() > $dtBanStartDate->getTimestamp()
+                && $dtToday->getTimestamp() < $dtBanEndDate->getTimestamp()
+            ) {
+                $aRestrictedMethods[] = $paymentBan->getPaymentMethod();
             }
         }
 
-        // Overwrite Methods with the above created result array
-        $this->methods = $result;
+        return $aRestrictedMethods;
+    }
 
-        return $this->methods;
+    /**
+     * MAGE-450 : Add validations for Ratepay methods
+     *
+     * @return array
+     */
+    protected function getRatepayRestrictedMethods()
+    {
+        /** @var Payone_Core_Helper_Ratepay $helper */
+        $helper = Mage::helper('payone_core/ratepay');
+        $helper->init($this->methods);
+
+        $allowedMethods = $helper->getRatepayMethods();
+        $validationSteps = array(
+            Payone_Core_Helper_Ratepay::VALIDATION_STEP_POSTALCODE,
+            Payone_Core_Helper_Ratepay::VALIDATION_STEP_CURRENCY,
+            Payone_Core_Helper_Ratepay::VALIDATION_STEP_CUSTOMER_AGE,
+            Payone_Core_Helper_Ratepay::VALIDATION_STEP_PHONE_NUMBER,
+            Payone_Core_Helper_Ratepay::VALIDATION_STEP_BASKET_SIZE,
+            Payone_Core_Helper_Ratepay::VALIDATION_STEP_SHIPPING_ADDRESS,
+        );
+
+        foreach ($validationSteps as $step) {
+            $allowedMethods = $helper->filterByValidation($step, $allowedMethods);
+        }
+
+        $restrictedMethods = array_diff($helper->getRatepayMethods(), $allowedMethods);
+
+        return $restrictedMethods;
     }
 
     /**
@@ -142,4 +209,18 @@ class Payone_Core_Block_Checkout_Onepage_Payment_Methods
         return $this->getAction()->getFullActionName('/');
     }
 
+    public function getSelectedMethodCode()
+    {
+        if ($codeMethod = parent::getSelectedMethodCode()) {
+            $sessionCodeMethod = Mage::getModel('sales/quote')
+                ->load(Mage::getSingleton('checkout/session')->getQuoteId())
+                ->getPayment()
+                ->getMethodInstance()
+                ->getCode();
+            if ($codeMethod != $sessionCodeMethod) {
+                return $sessionCodeMethod;
+            }
+        }
+        return parent::getSelectedMethodCode();
+    }
 }

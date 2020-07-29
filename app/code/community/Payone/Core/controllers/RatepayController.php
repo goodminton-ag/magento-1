@@ -33,24 +33,54 @@ class Payone_Core_RatepayController extends Mage_Core_Controller_Front_Action
         $ratePayShopId = $this->getRequest()->getParam('ratePayshopId');
         $amount = $this->getRequest()->getParam('amount');
         $ratePayCurrency = $this->getRequest()->getParam('ratePayCurrency');
+        $isAdmin = $this->getRequest()->getParam('isAdmin');
+        $quoteId = $this->getRequest()->getParam('quoteId');
         $this->loadLayout();
 
         try {
             if (preg_match('/^[0-9]+(\.[0-9][0-9][0-9])?(,[0-9]{1,2})?$/', $calcValue)) {
                 $calcValue = str_replace(".", "", $calcValue);
                 $calcValue = str_replace(",", ".", $calcValue);
+                $calcValue = floor($calcValue * 100);  //MAGE-363: Use cent instead of floating currency
 
                 $client = Mage::getSingleton('payone_core/mapper_apiRequest_payment_genericpayment');
                 $ratePayConfigModel = Mage::getSingleton('payone_core/payment_method_ratepay');
-                $getConfig = $ratePayConfigModel->getAllConfigsByQuote($this->getQuote());
+                $getConfig = $this->getConfig($ratePayConfigModel, $isAdmin, $quoteId);
                 $result = $client->ratePayCalculationRequest($amount, $ratePayShopId, $ratePayCurrency, $calcValue, null, $getConfig, 'calculation-by-rate');
 
                 if ($result instanceof Payone_Api_Response_Genericpayment_Ok) {
                     $responseData = $result->getPayData()->toAssocArray();
+                    $initialRateChoice = $this->getRequest()->getParam('calcValue');
+                    $message = $this->__('lang_calculation_rate_ok');
+
+                    // if the calculated installment value is different from the choice, we notify the user
+                    if ($initialRateChoice != $responseData['rate']) {
+                        // if value is lower than choice AND number of months is at maximum (36)
+                        // then the choice was too low
+                        // otherwise, it just got adapted to the closest available installment value
+                        if (
+                            $initialRateChoice < $responseData['rate']
+                            && $responseData['number-of-rates'] == 36
+                        ) {
+                            $message = $this->__('lang_calculation_rate_too_low');
+                        } else {
+                            $message = $this->__('lang_calculation_rate_not_available');
+                        }
+                    }
+                    $responseData['calculation-result-message'] = $message;
+
+                    /** @var Payone_Core_Block_Checkout_RatePayInstallmentplan $reviewBlock */
                     $reviewBlock = $this->getLayout()->getBlock('payone_ratepay.checkout.installmentplan');
-                    $html = $reviewBlock->showRateResultHtml($responseData);
-                    //set payone Session Data
-                    $this->setSessionData($responseData, $paymentMethod);
+                    $reviewBlock->setData($responseData);
+                    $reviewBlock->setIsAdmin($isAdmin);
+                    $html = $reviewBlock->toHtml();
+
+                    //if admin order, some fields are added to store,
+                    //otherwise, data are stores into session
+                    if (!$isAdmin) {
+                        //set payone Session Data
+                        $this->setSessionData($responseData, $paymentMethod);
+                    }
                 } else {
                     $this->unsetSessionData($paymentMethod);
                     if($result instanceof Payone_Api_Response_Error) {
@@ -71,7 +101,7 @@ class Payone_Core_RatepayController extends Mage_Core_Controller_Front_Action
         
         $this->getResponse()
             ->clearHeaders()
-            ->setHeader('Content-Type', 'text/html')
+            ->setHeader('Content-Type', 'text/html', true)
             ->setBody($html);
         return;
     }
@@ -88,21 +118,39 @@ class Payone_Core_RatepayController extends Mage_Core_Controller_Front_Action
         $ratePayShopId = $this->getRequest()->getParam('ratePayshopId');
         $amount = $this->getRequest()->getParam('amount');
         $ratePayCurrency = $this->getRequest()->getParam('ratePayCurrency');
+        $isAdmin = $this->getRequest()->getParam('isAdmin');
+        $quoteId = $this->getRequest()->getParam('quoteId');
         $this->loadLayout();
 
         try {
                 if (preg_match('/^[0-9]{1,5}$/', $calcValue)) {
                     $client = Mage::getSingleton('payone_core/mapper_apiRequest_payment_genericpayment');
                     $ratePayConfigModel = Mage::getSingleton('payone_core/payment_method_ratepay');
-                    $getConfig = $ratePayConfigModel->getAllConfigsByQuote($this->getQuote());
+                    $getConfig = $this->getConfig($ratePayConfigModel, $isAdmin, $quoteId);
                     $result = $client->ratePayCalculationRequest($amount, $ratePayShopId, $ratePayCurrency, null, $calcValue, $getConfig, 'calculation-by-time');
 
                     if ($result instanceof Payone_Api_Response_Genericpayment_Ok) {
                         $responseData = $result->getPayData()->toAssocArray();
+                        $message = $this->__('lang_calculation_runtime_ok');
+
+                        // if the calculated runtime value is different from the choice, we notify the user
+                        if ($responseData['number-of-rates'] != $calcValue) {
+                            $message = $this->__('lang_calculation_runtime_not_available');
+                        }
+                        $responseData['calculation-result-message'] = $message;
+
+                        /** @var Payone_Core_Block_Checkout_RatePayInstallmentplan $reviewBlock */
                         $reviewBlock = $this->getLayout()->getBlock('payone_ratepay.checkout.installmentplan');
-                        $html = $reviewBlock->showRateResultHtml($responseData);
-                        //set payone Session Data
-                        $this->setSessionData($responseData, $paymentMethod);
+                        $reviewBlock->setData($responseData);
+                        $reviewBlock->setIsAdmin($isAdmin);
+                        $html = $reviewBlock->toHtml();
+
+                        //if admin order, some fields are added to store,
+                        //otherwise, data are stores into session
+                        if (!$isAdmin) {
+                            //set payone Session Data
+                            $this->setSessionData($responseData, $paymentMethod);
+                        }
                     } else {
                         $this->unsetSessionData($paymentMethod);
                         $html = "<div class='rateError'>" . $this->__('lang_error') . ":<br/>" . $this->__('lang_request_error_else') . "</div>";
@@ -121,7 +169,7 @@ class Payone_Core_RatepayController extends Mage_Core_Controller_Front_Action
         
         $this->getResponse()
             ->clearHeaders()
-            ->setHeader('Content-Type', 'text/html')
+            ->setHeader('Content-Type', 'text/html', true)
             ->setBody($html);
         return;
     }
@@ -173,5 +221,23 @@ class Payone_Core_RatepayController extends Mage_Core_Controller_Front_Action
     private function getQuote()
     {
         return Mage::getSingleton('checkout/session')->getQuote();
+    }
+
+    /**
+     * @param Payone_Core_Model_Payment_Method_Ratepay $ratePayConfigModel
+     * @param bool $isAdmin
+     * @param string $quoteId
+     * @return Payone_Core_Model_Config_Payment_Method_Interface
+     */
+    private function getConfig($ratePayConfigModel, $isAdmin = false, $quoteId = '')
+    {
+        if ($isAdmin) {
+            $quote = Mage::getModel('sales/quote')->load($quoteId);
+        }
+        else {
+            $quote = $this->getQuote();
+        }
+
+        return $ratePayConfigModel->getAllConfigsByQuote($quote);
     }
 }

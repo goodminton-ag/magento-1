@@ -100,6 +100,9 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
         $request->setClearingtype(Payone_Enum_ClearingType::WALLET);
         $request->setAmount($quote->getGrandTotal());
         $request->setCurrency($quote->getQuoteCurrencyCode());
+
+        $this->checkCurrencyConversion($request, $quote);
+
         $request->setWallet(
             new Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet(
                 array(
@@ -110,6 +113,28 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
                 )
             )
         );
+        return $request;
+    }
+
+    /**
+     * @return Payone_Api_Request_PaydirektExpressSetCheckout
+     */
+    public function getPaydirektExpressInitCheckoutRequest()
+    {
+        $request = $this->getFactory()->getRequestPaydirektExpressSetCheckout();
+        $this->mapDefaultParameters($request);
+
+        return $request;
+    }
+
+    /**
+     * @return Payone_Api_Request_PaydirektExpressGetStatus
+     */
+    public function getPaydirektExpressGetStatusRequest()
+    {
+        $request = $this->getFactory()->getRequestPaydirektExpressGetStatus();
+        $this->mapDefaultParameters($request);
+
         return $request;
     }
 
@@ -210,7 +235,7 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
                 if($type == 'RPS'){
                     $request->setFinancingType(Payone_Api_Enum_RatepayType::RPS);
                 } else if($type == 'RPV') {
-                    $request->setFinancingType(Payone_Api_Enum_RatepayType::RPV);
+                    $request->setFinancingType(Payone_Api_Enum_RatepayInvoicingType::RPV);
                 }
             }
         } else {
@@ -227,9 +252,10 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
     /**
      * @param $sRatePayShopId
      * @param $sCurrency
+     * @param string $sRatePayType
      * @return Payone_Api_Request_Genericpayment
      */
-    public function addRatePayParameters($sRatePayShopId, $sCurrency) 
+    public function addRatePayParameters($sRatePayShopId, $sCurrency, $sRatePayType = Payone_Api_Enum_RatepayInvoicingType::RPV)
     {
         $request = $this->getRequest();
         $this->mapDefaultParameters($request);
@@ -250,7 +276,7 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
         $request->setAid($this->getConfigPayment()->getAid());
         $request->setClearingtype(Payone_Enum_ClearingType::FINANCING);
         $request->setCurrency($sCurrency);
-        $request->setFinancingType(Payone_Api_Enum_RatepayType::RPV);
+        $request->setFinancingType($sRatePayType);
 
         return $request;
     }
@@ -320,6 +346,18 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
                 )
             );
         }
+        if(isset($aRequestParams['payone_vat_id'])) {
+            $paydata->addItem(
+                new Payone_Api_Request_Parameter_Paydata_DataItem(
+                    array('key' => 'b2b', 'data' => 'yes')
+                )
+            );
+            $paydata->addItem(
+                new Payone_Api_Request_Parameter_Paydata_DataItem(
+                    array('key' => 'company_uid', 'data' => $aRequestParams['payone_vat_id'])
+                )
+            );
+        }
 
         if ($oAddress->getCountry() == 'NL') {
             $sTelephone = $oAddress->getTelephone();
@@ -363,10 +401,169 @@ class Payone_Core_Model_Mapper_ApiRequest_Payment_Genericpayment
     }
 
     /**
+     * @param string $currency
+     * @return \Payone_Api_Request_Genericpayment
+     */
+    public function requestAmazonPayGetConfiguration($currency = 'EUR')
+    {
+        $request = $this->getRequest();
+        $this->mapDefaultParameters($request);
+        $request->setApiVersion('3.10');
+        $request->setAid($this->getConfigPayment()->getAid());
+        $request->setClearingtype(\Payone_Enum_ClearingType::AMAZONPAY);
+        $request->setCurrency($currency);
+        $request->setWallet(new \Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet([
+            'wallettype' => \Payone_Api_Enum_WalletType::AMAZONPAY,
+        ]));
+        $request->setPaydata(new \Payone_Api_Request_Parameter_Paydata_Paydata(['items' => [
+            new \Payone_Api_Request_Parameter_Paydata_DataItem([
+                'key' => 'action', 'data' => \Payone_Api_Enum_GenericpaymentAction::AMAZONPAY_GETCONFIGURATION
+            ]),
+        ]]));
+        return $request;
+    }
+
+    /**
+     * @param string $workOrderId
+     * @param array $data
+     * @param string $currency
+     * @param integer $amount
+     * @return \Payone_Api_Request_Genericpayment
+     */
+    public function requestAmazonPayOrderReferenceDetails($workOrderId, $data = [], $currency = 'EUR', $amount = null)
+    {
+        $request = $this->getRequest();
+        $this->mapDefaultParameters($request);
+        $request->setApiVersion('3.10');
+        $request->setAid($this->getConfigPayment()->getAid());
+        $request->setClearingtype(\Payone_Enum_ClearingType::AMAZONPAY);
+        $request->setCurrency($currency);
+        $request->setAmount($amount);
+        $request->setWallet(new \Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet([
+            'wallettype' => \Payone_Api_Enum_WalletType::AMAZONPAY,
+        ]));
+        $items = [];
+        foreach ($data as $index => $value) {
+            array_push($items, new \Payone_Api_Request_Parameter_Paydata_DataItem([
+                'key'  => $index,
+                'data' => $value,
+            ]));
+        }
+        $request->setPaydata(new \Payone_Api_Request_Parameter_Paydata_Paydata(['items' => $items]));
+        $request->setWorkorderId($workOrderId);
+        return $request;
+    }
+
+    /**
      * @return string
      */
     public function getEventType()
     {
         return self::EVENT_TYPE;
+    }
+
+    /**
+     * @param Payone_Api_Request_Genericpayment $request
+     * @param Mage_Sales_Model_Quote $quote
+     */
+    private function checkCurrencyConversion(Payone_Api_Request_Genericpayment $request, Mage_Sales_Model_Quote $quote)
+    {
+        $config = $this->getConfigPayment();
+        if($config->getCurrencyConvert()) {
+            $request->setCurrency($quote->getBaseCurrencyCode());
+            $request->setAmount($quote->getBaseGrandTotal());
+        }
+    }
+
+    /**
+     * @param string $workOrderId
+     * @param array $data
+     * @param string $currency
+     * @param integer $amount
+     * @return \Payone_Api_Request_Genericpayment
+     */
+    public function requestAmazonPayConfirmOrderReference($workOrderId, $data = [], $currency = 'EUR', $amount = null)
+    {
+        $request = $this->getRequest();
+
+        $this->mapDefaultParameters($request);
+        $request->setApiVersion('3.10');
+        $request->setAid($this->getConfigPayment()->getAid());
+        $request->setCurrency($currency);
+        $request->setAmount($amount);
+
+        $request->setClearingtype(\Payone_Enum_ClearingType::AMAZONPAY);
+        $request->setWallet(new \Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet([
+            'wallettype' => \Payone_Api_Enum_WalletType::AMAZONPAY,
+            'successurl' => $data['successUrl'],
+            'errorurl'   => $data['errorUrl']
+        ]));
+        $request->setWorkorderId($workOrderId);
+
+        $paydata = new Payone_Api_Request_Parameter_Paydata_Paydata();
+        if (!empty($data['action'])) {
+            $paydata->addItem(new Payone_Api_Request_Parameter_Paydata_DataItem([
+                    'key' => 'action',
+                    'data' => $data['action']
+            ]));
+        }
+        if (!empty($data['amazonReferenceId'])) {
+            $paydata->addItem(new Payone_Api_Request_Parameter_Paydata_DataItem([
+                'key'  => 'amazon_reference_id',
+                'data' => $data['amazonReferenceId']
+            ]));
+        }
+        if (!empty($data['shopOrderReference'])) {
+            $paydata->addItem(new Payone_Api_Request_Parameter_Paydata_DataItem([
+                'key'  => 'reference',
+                'data' => $data['shopOrderReference']
+            ]));
+        }
+        $request->setPaydata($paydata);
+
+        return $request;
+    }
+
+    /**
+     * @param string $workOrderId
+     * @param array $data
+     * @param string $currency
+     * @param integer $amount
+     * @return \Payone_Api_Request_Genericpayment
+     */
+    public function requestAmazonPayCancelOrderReference($workOrderId, $data = [], $currency = 'EUR', $amount = null)
+    {
+        $request = $this->getRequest();
+
+        $this->mapDefaultParameters($request);
+        $request->setApiVersion('3.10');
+        $request->setAid($this->getConfigPayment()->getAid());
+        $request->setCurrency($currency);
+        $request->setAmount($amount);
+
+        $request->setClearingtype(\Payone_Enum_ClearingType::AMAZONPAY);
+        $request->setWallet(new \Payone_Api_Request_Parameter_Authorization_PaymentMethod_Wallet([
+            'wallettype' => \Payone_Api_Enum_WalletType::AMAZONPAY,
+            'successurl' => '',
+            'errorurl'   => ''
+        ]));
+        $request->setWorkorderId($workOrderId);
+
+        $paydata = new Payone_Api_Request_Parameter_Paydata_Paydata();
+        if (!empty($data['action'])) {
+            $paydata->addItem(new Payone_Api_Request_Parameter_Paydata_DataItem([
+                'key' => 'action',
+                'data' => $data['action']
+            ]));
+        }
+        if (!empty($data['amazonReferenceId'])) {
+            $paydata->addItem(new Payone_Api_Request_Parameter_Paydata_DataItem([
+                'key'  => 'amazon_reference_id',
+                'data' => $data['amazonReferenceId']
+            ]));
+        }
+        $request->setPaydata($paydata);
+
+        return $request;
     }
 }

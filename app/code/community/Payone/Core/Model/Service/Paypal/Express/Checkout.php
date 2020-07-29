@@ -94,6 +94,11 @@ class Payone_Core_Model_Service_Paypal_Express_Checkout
     protected $_customerSession;
 
     /**
+     * @var Mage_Checkout_Model_Session|null
+     */
+    protected $_checkoutSession;
+
+    /**
      * Set quote and config instances
      * @param array $params
      */
@@ -112,6 +117,7 @@ class Payone_Core_Model_Service_Paypal_Express_Checkout
         }
 
         $this->_customerSession = Mage::getSingleton('customer/session');
+        $this->_checkoutSession = Mage::getSingleton('checkout/session');
     }
 
     /**
@@ -181,6 +187,7 @@ class Payone_Core_Model_Service_Paypal_Express_Checkout
         $service = $this->getFactory()->getServicePaymentGenericpayment($this->_config);
         $mapper = $service->getMapper();
         $request = $mapper->mapExpressCheckoutParameters($this->_quote);
+        $this->_checkoutSession->setPayoneGenericpaymentSubtotal($this->_quote->getSubtotal());
         $response = $this->getFactory()->getServiceApiPaymentGenericpayment()->request($request);
 
         if($response instanceof Payone_Api_Response_Genericpayment_Redirect) {
@@ -205,6 +212,11 @@ class Payone_Core_Model_Service_Paypal_Express_Checkout
         $this->_ignoreAddressValidation();
 
         if($response instanceof Payone_Api_Response_Genericpayment_Ok) {
+
+            if (is_null($response->getPayData())) {
+                Mage::throwException(Mage::helper('paypal')->__('An error occured during the PayPal Express Checkout : missing information.'));
+            }
+
             // @var Mage_Sales_Model_Quote_Address
             $billingAddress = $this->_quote->getBillingAddress();
             // @var Mage_Sales_Model_Quote_Address
@@ -250,6 +262,13 @@ class Payone_Core_Model_Service_Paypal_Express_Checkout
                     $billingAddress->setLastname($item->getData());
                     $shippingAddress->setLastname($item->getData());
                     $this->_quote->setCustomerLastname($item->getData());
+                }
+
+                if($item->getKey() == 'shipping_addressaddition') {
+                    $info = $this->_quote->getPayment()->getMethodInstance()->getInfoInstance();
+                    $streetAddition = $item->getData();
+                    $info->setPayoneBillingAddressaddition($streetAddition);
+                    $info->setPayoneShippingAddressaddition($streetAddition);
                 }
             }
 
@@ -353,7 +372,14 @@ class Payone_Core_Model_Service_Paypal_Express_Checkout
 
         $this->_order = $order;
 
-
+        Mage::dispatchEvent(
+            'checkout_submit_all_after',
+            [
+                'order' => $this->_order,
+                'quote' => $this->_quote,
+                'recurring_profiles' => $this->_recurringPaymentProfiles
+            ]
+        );
     }
 
     /**
