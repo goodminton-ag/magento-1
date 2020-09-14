@@ -7,7 +7,6 @@ app/design/frontend/base/default/layout/payone/*        app/design/frontend/base
 app/design/frontend/base/default/template/payone/*      app/design/frontend/base/default/template/payone/
 
 app/design/frontend/rwd/default/layout/payone/*        app/design/frontend/rwd/default/layout/payone/
-app/design/frontend/rwd/default/template/payone/*      app/design/frontend/rwd/default/template/payone/
 
 app/etc/modules/*                                       app/etc/modules/
 
