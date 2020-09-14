@@ -32,7 +32,8 @@ $allowedSEPACountries = htmlspecialchars($this->getAllowedSEPACountries());
 $accountOwner = $this->getAccountOwner();
 $configShowBankData = $this->getPaymentConfig()->getSepaDeShowBankData();
 $isAllowedDirectDebit = $this->isAllowedDirectDebit();
-$initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DIRECT_DEBIT : Payone_Api_Enum_RatepayDebitType::BANK_TRANSFER;
+$ratePaymentDebitAllowedType = $this->getRateDebitType();
+$initialDebitType = $ratePaymentDebitAllowedType == $this::RATE_PAYMENT_DEBIT_ONLY_BANKTRANSFER ? Payone_Api_Enum_RatepayDebitType::BANK_TRANSFER : Payone_Api_Enum_RatepayDebitType::DIRECT_DEBIT;
 ?>
 <fieldset class="form-list">
     <ul id="payment_form_<?php echo $code ?>" style="display:none">
@@ -54,7 +55,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
                     </label>
                     <br class="clear"/>
                     <select id="<?php echo $code ?>_additional_fields_customer_dob_day" class="required-entry"
-                            style="width: 60px;" onchange="payoneRatepayCustomerDobInput('<?php echo $code ?>')">
+                            style="width: 60px;" onchange="payoneCustomerDobInput('<?php echo $code ?>')">
                         <option value="">--</option>
                         <?php for ($x = 1; $x <= 31; $x++): ?>
                             <option value="<?php echo sprintf('%02d', $x); ?>">
@@ -63,7 +64,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
                         <?php endfor; ?>
                     </select>
                     <select id="<?php echo $code ?>_additional_fields_customer_dob_month" class="required-entry"
-                            style="width: 60px;" onchange="payoneRatepayCustomerDobInput('<?php echo $code ?>')">
+                            style="width: 60px;" onchange="payoneCustomerDobInput('<?php echo $code ?>')">
                         <option value="">--</option>
                         <?php for ($x = 1; $x <= 12; $x++) : ?>
                             <option value="<?php echo sprintf('%02d', $x); ?>">
@@ -72,7 +73,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
                         <?php endfor; ?>
                     </select>
                     <select id="<?php echo $code ?>_additional_fields_customer_dob_year" class="required-entry"
-                            style="width: 60px;" onchange="payoneRatepayCustomerDobInput('<?php echo $code ?>')">
+                            style="width: 60px;" onchange="payoneCustomerDobInput('<?php echo $code ?>')">
                         <option value="">----</option>
                         <?php for ($x = date('Y'); $x > (date('Y') - 100); $x--) : ?>
                             <option value="<?php echo $x; ?>">
@@ -125,7 +126,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
         <?php endif;?>
 
         <div id="<?php echo $code ?>_debit_details">
-            <?php if ($isAllowedDirectDebit) : ?>
+            <?php if ($ratePaymentDebitAllowedType != $this::RATE_PAYMENT_DEBIT_ONLY_BANKTRANSFER) : ?>
                 <li>
                     <div id="ratepay-Header">
                         <div>
@@ -206,7 +207,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
             <?php endif; ?>
         </div>
 
-        <li <?php if (!$isAllowedDirectDebit) { echo 'style="display: none"'; } ?>>
+        <li <?php if ($ratePaymentDebitAllowedType != $this::RATE_PAYMENT_DEBIT_BOTH) { echo 'style="display: none"'; } ?>>
             <p id="method-switch-section" onclick="switchRatePaymentMethod('<?php echo $code ?>')">
                 <span id="method-switch-checkbox"></span>
                 <a id="<?php echo $code ?>_method_switch_invoice" style="cursor: pointer;">
@@ -222,22 +223,6 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
             <input type="hidden" id="ratePayCurrency" name="payment[payone_ratepay_currency]" value="<?php echo $ratePayCurrency; ?>"/>
             <input type="hidden" name="payment[payone_isb2b]" value="<?php echo (int)$this->isB2BMode(); ?>"/>
             <input type="hidden" name="payment[payone_country]" value="<?php echo $this->getCountry(); ?>"/>
-            <?php
-                $sDeviceIdentToken = $this->getRatePayDeviceFingerprint();
-                $sDeviceIdentId = $this->getRatePayDeviceFingerprintSnippetId();
-            ?>
-            <script language="JavaScript">
-                var di = {t:'<?php echo $sDeviceIdentToken; ?>',v:'<?php echo $sDeviceIdentId; ?>',l:'Checkout'};
-            </script>
-            <script type="text/javascript" src="//d.ratepay.com/<?php echo $sDeviceIdentId; ?>/di.js"></script>
-            <noscript>
-                <link rel="stylesheet" type="text/css" href="//d.ratepay.com/di.css?t=<?php echo $sDeviceIdentToken; ?>&v=<?php echo $sDeviceIdentId; ?>&l=Checkout">
-            </noscript>
-            <object  type="application/x-shockwave-flash" data="//d.ratepay.com/<?php echo $sDeviceIdentId; ?>/c.swf" width="0" height="0">
-                <param name="movie" value="//d.ratepay.com/<?php echo $sDeviceIdentId; ?>/c.swf" />
-                <param name="flashvars" value="t=<?php echo $sDeviceIdentToken; ?>&v=<?php echo $sDeviceIdentId; ?>"/>
-                <param name="AllowScriptAccess" value="always"/>
-            </object>
         </li>
 
         <li>
@@ -269,7 +254,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-4" style="z-index: 1;">
                             <div class="panel panel-default">
                                 <div class="panel-heading text-center" id="firstInput">
                                     <h2><?php echo $this->__('lang_choose_runtime'); ?></h2>
@@ -296,7 +281,7 @@ $initialDebitType = $isAllowedDirectDebit ? Payone_Api_Enum_RatepayDebitType::DI
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-4" style="z-index: 1;">
                             <div class="panel panel-default">
                                 <div class="panel-heading text-center" id="secondInput">
                                     <h2><?php echo $this->__('lang_insert_wishrate'); ?></h2>

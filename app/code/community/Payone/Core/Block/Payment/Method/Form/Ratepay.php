@@ -26,6 +26,9 @@
  */
 class Payone_Core_Block_Payment_Method_Form_Ratepay extends Payone_Core_Block_Payment_Method_Form_Abstract
 {
+    const RATE_PAYMENT_DEBIT_ONLY_DIRECTDEBIT = 0;
+    const RATE_PAYMENT_DEBIT_ONLY_BANKTRANSFER = 1;
+    const RATE_PAYMENT_DEBIT_BOTH = 2;
 
     /**
      * @var bool
@@ -105,44 +108,6 @@ class Payone_Core_Block_Payment_Method_Form_Ratepay extends Payone_Core_Block_Pa
         $oMethod = $this->getMethod();
         $aConfig = $oMethod->getMatchingRatePayConfig();
         return $aConfig['shop_id'];
-    }
-
-    /**
-     * @return mixed
-     */
-    public function getRatePayDeviceFingerprintSnippetId() 
-    {
-        $oMethod = $this->getMethod();
-        $aConfig = $oMethod->getMatchingRatePayConfig();
-        return $aConfig['device_fingerprint_snippet_id'];
-    }
-
-    /**
-     * @param $sFingerprint
-     */
-    protected function _setSessionFingerprint($sFingerprint) 
-    {
-        $checkoutSession = $this->getFactory()->getSingletonCheckoutSession();
-        $checkoutSession->setRatePayFingerprint($sFingerprint);
-    }
-
-    /**
-     * @return string
-     */
-    public function getRatePayDeviceFingerprint() 
-    {
-        $checkoutSession = $this->getFactory()->getSingletonCheckoutSession();
-        if(!$checkoutSession->getRatePayFingerprint()) {
-            $sFingerprint  = $this->getQuote()->getBillingAddress()->getFirstname();
-            $sFingerprint .= $this->getQuote()->getBillingAddress()->getLastname();
-            $sFingerprint .= microtime();
-            $sFingerprint = md5($sFingerprint);
-            $this->_setSessionFingerprint($sFingerprint);
-        } else {
-            $sFingerprint = $checkoutSession->getRatePayFingerprint();
-        }
-
-        return $sFingerprint;
     }
 
     /**
@@ -288,5 +253,23 @@ class Payone_Core_Block_Payment_Method_Form_Ratepay extends Payone_Core_Block_Pa
         }
 
         return $configs;
+    }
+
+    /**
+     * @return int
+     */
+    public function getRateDebitType()
+    {
+        $oMethod = $this->getMethod();
+        $aConfig = $oMethod->getMatchingRatePayConfig();
+
+        $validPaymentFirstDay = $aConfig['valid_payment_firstdays'];
+        if($validPaymentFirstDay === "2") {
+            return self::RATE_PAYMENT_DEBIT_ONLY_DIRECTDEBIT;
+        } elseif($validPaymentFirstDay === "28") {
+            return self::RATE_PAYMENT_DEBIT_ONLY_BANKTRANSFER;
+        }
+
+        return self::RATE_PAYMENT_DEBIT_BOTH;
     }
 }

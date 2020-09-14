@@ -499,7 +499,6 @@ DIRECT_DEBIT,Lastschrift
 "JCB","JCB"
 "MAESTRO_INTERNATIONAL","Maestro International"
 "MAESTRO_UK","Maestro UK"
-"DISCOVER","Discover"
 "CARTE_BLEUE","Carte Bleue"
 "CHINA_UNION_PAY","China Union Pay"
 
@@ -1216,7 +1215,7 @@ The <a target='_blank' href='https://www.ratepay.com/zgb-dse'>additional terms a
 "Enables email notification for failed transaction status processing.","Aktiviert die E-Mail Benachrichtigung für fehlgeschlagene Transaktionstatus Verarbeitungen."
 "Processing retries","Verarbeitungs Versuche"
 "The number of retries for failed transaction status processings.","Die Anzahl Versuche für fehlgeschlagene Transaktionstatus Verarbeitungen."
-"Reporting email address":"Benachrichtigungs E-Mail Adresse"
+"Reporting email address","Benachrichtigungs E-Mail Adresse"
 
 "Unable to initialize PAYONE Amazon Checkout.","PAYONE Amazon Checkout kann leider nicht initialisieren."
 "Unable to initialize Paydirekt Express Checkout.","Der Paydirekt Express Checkout konnte nicht initialisiert werden."
@@ -1300,3 +1299,12 @@ The <a target='_blank' href='https://www.ratepay.com/zgb-dse'>additional terms a
 
 "Error while loading method","Beim Laden der Methode ist ein Fehler aufgetreten"
 
+
+"KLARNA_CHECKOUT_TITLE", "Mit Klarna bezahlen"
+"KLARNA_CHECKOUT_DISCLAIMER", "Wenn du deinen Einkauf fortsetzt, bestätigst du, dass du unsere <a style='float:none; margin:0' target='_blank' href='https://cdn.klarna.com/1.0/shared/content/legal/terms/0/de_de/user'>Allgemeinen Geschäftsbedingungen</a> sowie unsere <a style='float:none; margin:0' target='_blank' href='https://cdn.klarna.com/1.0/shared/content/legal/terms/0/de_de/privacy'>Datenschutzerklärung</a> gelesen hast."
+"payone_klarna_invoicing", Klarna "Pay Later" (Rechnung)
+"payone_klarna_installment", Klarna "Slice It" (Ratenkauf)
+"payone_klarna_direct_debit", Klarna "Pay Now" (Lastschrift)
+"An error occurred during the operation.", "Während des Vorgangs ist ein Fehler aufgetreten."
+
+"This is a required field.", "Dies ist ein Pflichtfeld."

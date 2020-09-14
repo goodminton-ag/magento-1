@@ -139,7 +139,6 @@ $_colspan = $_colspan > 1 ? 'colspan="' . $_colspan . '"' : '';
                 <?php foreach ($this->_columns as $columnName => $column):?>
                     +'<td>'
                         +'<?php echo Mage::helper('core')->jsQuoteEscape($this->_renderCellTemplate($columnName)) ?>'
-                    +'<span class="required"> *<\/span>'
                     +'<\/td>'
                 <?php endforeach;?>
                 +'<td><button onclick="arrayRow<?php echo $_htmlId ?>.del(\'#{_id}\')" class="scalable delete" type="button"><span><span><span><?php echo Mage::helper('core')->jsQuoteEscape(Mage::helper('adminhtml')->__('Delete')) ?><\/span><\/span><\/span><\/button><\/td>'

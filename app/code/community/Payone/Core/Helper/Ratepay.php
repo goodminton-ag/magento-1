@@ -38,10 +38,26 @@ class Payone_Core_Helper_Ratepay extends Payone_Core_Helper_Abstract
     const VALIDATION_STEP_PHONE_NUMBER = 'phone';
     const VALIDATION_STEP_BASKET_SIZE = 'basketSize';
     const VALIDATION_STEP_SHIPPING_ADDRESS = 'shippingAddress';
+    const VALIDATION_STEP_B2B = 'b2b';
+    const VALIDATION_STEP_SESSION_BAN = 'sessionBan';
 
     const MINIMUM_CUSTOMER_AGE = 18;
 
     protected $ratepaySpecificConfig = array();
+
+    protected $allowedB2b = array(
+        'at' => array(
+            Payone_Core_Model_System_Config_PaymentMethodCode::RATEPAYINVOICING,
+            Payone_Core_Model_System_Config_PaymentMethodCode::RATEPAYDIRECTDEBIT
+        ),
+        'ch' => array(
+            Payone_Core_Model_System_Config_PaymentMethodCode::RATEPAYINVOICING,
+        ),
+        'de' => array(
+            Payone_Core_Model_System_Config_PaymentMethodCode::RATEPAYINVOICING,
+            Payone_Core_Model_System_Config_PaymentMethodCode::RATEPAYDIRECTDEBIT
+        )
+    );
 
     /**
      * @param array $checkoutMethodsList
@@ -245,6 +261,41 @@ class Payone_Core_Helper_Ratepay extends Payone_Core_Helper_Abstract
         }
 
         return $methodsList;
+    }
+
+    /**
+     * @param array $methodsList
+     * @return array
+     */
+    protected function validateB2b($methodsList)
+    {
+        /** @var Mage_Sales_Model_Quote $quote */
+        $quote = $this->getQuote();
+
+        if (empty($quote->getBillingAddress()->getCompany())) {
+            return $methodsList;
+        }
+
+        $billCountry = strtolower($quote->getBillingAddress()->getCountry());
+        $allowedMethods = isset($this->allowedB2b[$billCountry]) ? $this->allowedB2b[$billCountry] : array();
+        $methodsList = array_intersect($methodsList, $allowedMethods);
+
+        return $methodsList;
+    }
+
+    /**
+     * @param array $methodsList
+     * @return bool
+     */
+    protected function validateSessionBan($methodsList)
+    {
+        $checkoutSession = Mage::getSingleton('checkout/session');
+
+        if (is_null($checkoutSession->getData('ratepay_checkout_banned'))) {
+            return $methodsList;
+        }
+
+         return $checkoutSession->getData('ratepay_checkout_banned') ? array() : $methodsList;
     }
 
     /**
